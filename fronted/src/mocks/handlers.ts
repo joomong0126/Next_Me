@@ -46,6 +46,141 @@ function issueMockToken(user: StoredUser) {
   return `${header}.${payload}.mock`;
 }
 
+type AssistantUploadKind = 'file' | 'link' | 'text';
+
+type AssistantUploadRequest =
+  | { kind: 'file'; fileName: string; mimeType: string; size: number }
+  | { kind: 'link'; url: string }
+  | { kind: 'text'; title: string; content: string };
+
+interface AssistantUploadRecord {
+  uploadId: string;
+  kind: AssistantUploadKind;
+  name: string;
+  mimeType?: string;
+  sourceUrl?: string;
+  size?: number;
+  createdAt: string;
+  contentPreview?: string;
+  rawContent?: string;
+}
+
+interface AssistantAnalysisRecord {
+  analysisId: string;
+  uploadId: string;
+  project: {
+    title: string;
+    summary: string;
+    tags: string[];
+    category: string;
+  };
+  metadata: {
+    format: string;
+    type: 'file' | 'link' | 'project';
+    sourceUrl?: string;
+    confidence: number;
+    recommendedNextActions: string[];
+  };
+}
+
+const assistantUploadsStore = new Map<string, AssistantUploadRecord>();
+const assistantAnalysisStore = new Map<string, AssistantAnalysisRecord>();
+
+const assistantRemoveFileExtension = (name: string) => name.replace(/\.[^/.]+$/, '');
+
+const assistantResolveFormat = (upload: AssistantUploadRecord) => {
+  if (upload.kind === 'link') return '링크';
+  if (upload.kind === 'text') return '텍스트';
+  if (upload.mimeType?.startsWith('image/')) return '이미지';
+  if (upload.mimeType === 'application/pdf') return 'PDF';
+  return '문서';
+};
+
+const assistantResolveCategory = (kind: AssistantUploadKind, userRole: string) => {
+  const lowerRole = userRole.toLowerCase();
+  const isMarketing = ['marketing', '마케팅'].some((keyword) => lowerRole.includes(keyword));
+  const isDeveloper = ['developer', '개발', '프론트엔드', '백엔드'].some((keyword) => lowerRole.includes(keyword));
+
+  if (isMarketing) {
+    switch (kind) {
+      case 'file':
+        return '브랜드 마케팅';
+      case 'link':
+        return 'SNS 마케팅';
+      case 'text':
+        return '콘텐츠 마케팅';
+      default:
+        return '브랜드 마케팅';
+    }
+  }
+
+  if (isDeveloper) {
+    switch (kind) {
+      case 'file':
+        return '프론트엔드';
+      case 'link':
+        return '데이터 분석';
+      case 'text':
+        return '백엔드';
+      default:
+        return '프론트엔드';
+    }
+  }
+
+  switch (kind) {
+    case 'file':
+      return '협업';
+    case 'link':
+      return '기획';
+    case 'text':
+      return '프레젠테이션';
+    default:
+      return '기획';
+  }
+};
+
+const assistantGenerateTags = (upload: AssistantUploadRecord) => {
+  const baseTags = ['AI 분석', '자동 생성'];
+
+  if (upload.kind === 'file') {
+    return [assistantResolveFormat(upload), '파일 업로드', ...baseTags];
+  }
+
+  if (upload.kind === 'link' && upload.sourceUrl) {
+    return [upload.sourceUrl, '링크', ...baseTags];
+  }
+
+  if (upload.kind === 'text') {
+    return [upload.name || '텍스트 입력', '요약', ...baseTags];
+  }
+
+  return baseTags;
+};
+
+const assistantGenerateSummary = (upload: AssistantUploadRecord) => {
+  if (upload.kind === 'file') {
+    return `"${assistantRemoveFileExtension(upload.name)}" 파일을 분석하여 프로젝트 개요와 주요 인사이트를 정리했습니다.`;
+  }
+
+  if (upload.kind === 'link' && upload.sourceUrl) {
+    return `${upload.sourceUrl}의 핵심 콘텐츠를 분석해 프로젝트 아이디어와 적용 포인트를 도출했습니다.`;
+  }
+
+  if (upload.kind === 'text' && upload.rawContent) {
+    const trimmed = upload.rawContent.trim();
+    const preview = trimmed.slice(0, 120).replace(/\s+/g, ' ');
+    const suffix = trimmed.length > 120 ? '...' : '';
+    return `제공하신 텍스트를 기반으로 프로젝트 요약과 개선 아이디어를 구성했습니다: ${preview}${suffix}`;
+  }
+
+  return '업로드한 자료를 바탕으로 프로젝트 정보를 구성했습니다.';
+};
+
+const assistantGenerateRecommendedActions = (category: string) => [
+  `${category} 관점에서 핵심 성과 및 수치를 추가해보세요.`,
+  '필요하다면 프로젝트 역할과 사용 도구 정보를 보완해주세요.',
+];
+
 export const handlers = [
   // 회원가입: 입력 정보를 저장하고 즉시 로그인 토큰 발급
   http.post('/auth/signup', async ({ request }) => {
@@ -178,5 +313,135 @@ export const handlers = [
     const body = (await request.json()) as { url: string; title: string };
     const item = { id: crypto.randomUUID(), userId: t.sub, ...body };
     return HttpResponse.json(item, { status: 201 });
+  }),
+
+  // AI Assistant chat 응답 목업
+  http.post('/chat', async ({ request }) => {
+    await delay(600);
+    const { input, projectId, userRole, history } = (await request.json()) as {
+      input: string;
+      projectId?: number;
+      userRole?: string;
+      history?: Array<{ role: string; content: string }>;
+    };
+
+    const lastQuestion =
+      (history ?? []).slice().reverse().find((entry) => entry.role === 'user')?.content ?? input ?? '';
+
+    const roleLabel = userRole ? `${userRole} 관점에서 ` : '';
+    const context = projectId ? `프로젝트 #${projectId}을 기준으로 ` : '';
+
+    const answer = [
+      `안녕하세요! ${roleLabel}${context}요청하신 내용을 정리해봤어요.`,
+      '',
+      `• 핵심 질문: "${lastQuestion || '현재 질문'}"`,
+      '• 주요 포인트를 단계별로 분석하고, 실행 가능한 다음 액션을 함께 제안드릴게요.',
+      '',
+      '1) 현재 상황 요약: 입력해 주신 내용을 기반으로 맥락을 파악했습니다.',
+      '2) 분석 인사이트: 목표, 성과, 개선 아이디어 관점에서 살펴보면 도움이 됩니다.',
+      '3) 추천 액션: 바로 실행 가능한 2~3가지 후속 조치를 제안드려요.',
+      '',
+      '더 구체적인 세부 정보나 다른 프로젝트에 대해서도 언제든지 말씀해 주세요!',
+    ].join('\n');
+
+    return HttpResponse.text(answer);
+  }),
+
+  // Assistant project upload → mock Supabase stage
+  http.post('/assistant/uploads', async ({ request }) => {
+    await delay(600);
+    const payload = (await request.json()) as AssistantUploadRequest;
+
+    const uploadId = `upload_${crypto.randomUUID()}`;
+    const createdAt = new Date().toISOString();
+
+    let record: AssistantUploadRecord;
+
+    if (payload.kind === 'file') {
+      record = {
+        uploadId,
+        kind: 'file',
+        name: payload.fileName,
+        mimeType: payload.mimeType,
+        size: payload.size,
+        createdAt,
+      };
+    } else if (payload.kind === 'link') {
+      const normalizedUrl = payload.url.startsWith('http') ? payload.url : `https://${payload.url}`;
+      const url = new URL(normalizedUrl);
+      record = {
+        uploadId,
+        kind: 'link',
+        name: url.hostname,
+        sourceUrl: normalizedUrl,
+        createdAt,
+      };
+    } else {
+      record = {
+        uploadId,
+        kind: 'text',
+        name: payload.title,
+        rawContent: payload.content,
+        contentPreview: payload.content.slice(0, 200),
+        createdAt,
+      };
+    }
+
+    assistantUploadsStore.set(uploadId, record);
+
+    return HttpResponse.json(record);
+  }),
+
+  // Assistant analysis via mock AI server
+  http.post('/assistant/analyze', async ({ request }) => {
+    await delay(1200);
+    const { uploadId, userRole } = (await request.json()) as { uploadId: string; userRole: string };
+    const upload = assistantUploadsStore.get(uploadId);
+
+    if (!upload) {
+      return HttpResponse.json({ message: 'Upload not found' }, { status: 404 });
+    }
+
+    const analysis: AssistantAnalysisRecord = {
+      analysisId: `analysis_${crypto.randomUUID()}`,
+      uploadId,
+      project: {
+        title:
+          upload.kind === 'file'
+            ? assistantRemoveFileExtension(upload.name)
+            : upload.kind === 'link'
+            ? upload.name
+            : upload.name || 'AI 생성 프로젝트',
+        summary: assistantGenerateSummary(upload),
+        tags: assistantGenerateTags(upload),
+        category: assistantResolveCategory(upload.kind, userRole ?? ''),
+      },
+      metadata: {
+        format: assistantResolveFormat(upload),
+        type: upload.kind === 'text' ? 'project' : upload.kind === 'link' ? 'link' : 'file',
+        sourceUrl: upload.sourceUrl,
+        confidence: 0.92,
+        recommendedNextActions: assistantGenerateRecommendedActions(
+          assistantResolveCategory(upload.kind, userRole ?? ''),
+        ),
+      },
+    };
+
+    assistantAnalysisStore.set(uploadId, analysis);
+
+    return HttpResponse.json(analysis);
+  }),
+
+  // Assistant analysis fetch from mock Supabase
+  http.get('/assistant/analysis/:uploadId', async ({ params }) => {
+    await delay(500);
+    const uploadId = params.uploadId as string;
+    const analysis = assistantAnalysisStore.get(uploadId);
+
+    if (!analysis) {
+      return HttpResponse.json({ message: 'Analysis not found' }, { status: 404 });
+    }
+
+    return HttpResponse.json(analysis);
   }),
 ];

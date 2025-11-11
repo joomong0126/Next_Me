@@ -34,6 +34,25 @@ export type SignupOutput = LoginOutput;
 
 export type MeOutput = AuthUser;
 
+export type ProjectRecordType = 'file' | 'link' | 'project';
+
+export type ProjectRecord = {
+  id: number;
+  title: string;
+  category: string;
+  tags: string[];
+  summary: string;
+  type: ProjectRecordType;
+  sourceUrl?: string | null;
+  period?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  role?: string | null;
+  achievements?: string | null;
+  tools?: string | null;
+  description?: string | null;
+};
+
 export interface AuthAPI {
   login(input: LoginInput): Promise<LoginOutput>;
   loginWithGoogle(input: GoogleLoginInput): Promise<LoginOutput>;
@@ -42,6 +61,11 @@ export interface AuthAPI {
   me(): Promise<MeOutput>;
 }
 
+export interface ProjectsAPI {
+  list(): Promise<ProjectRecord[]>;
+}
+
 export interface API {
   auth: AuthAPI;
+  projects: ProjectsAPI;
 }

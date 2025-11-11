@@ -78,4 +78,14 @@ npm run dev
 ```
 
 브라우저에서 `http://localhost:5173` 으로 접속하세요.
+
+### Mock ↔ Supabase 전환 가이드
+
+| 모드 | 필수 환경 변수 | 설명 |
+| --- | --- | --- |
+| **Mock** (기본 로컬 체험) | `VITE_USE_MOCK=true` | - MSW가 `/auth`, `/projects`, `/chat` 요청을 가로채 mock 데이터/응답을 돌려줍니다.<br>- Supabase/AI 서버 주소가 비어 있어도 `AIAssistant`는 자동으로 `/chat` mock 엔드포인트를 사용합니다. |
+| **Supabase + AI 서버** | `VITE_USE_MOCK=false` 또는 제거<br>`VITE_SUPABASE_URL`<br>`VITE_SUPABASE_ANON_KEY`<br>`VITE_AI_BASE_URL` | - Mock을 끄면 `shared/api`가 Supabase 어댑터를 로딩합니다.<br>- `AIAssistant`는 `VITE_AI_BASE_URL` 값을 기준으로 `POST {AI_BASE_URL}/chat` 호출을 수행합니다.<br>- 세 값을 모두 채운 뒤 반드시 `npm run dev`를 재시작하세요. |
+
+- 개발/실 서버를 번갈아 사용할 경우 `.env.development`, `.env.production` 등으로 분리 관리하면 편리합니다.
+- Supabase/AI 서버 연결 오류가 발생하면 브라우저 콘솔에서 `import.meta.env.VITE_USE_MOCK` 값과 `/chat` 네트워크 응답 상태를 먼저 확인하세요.
   

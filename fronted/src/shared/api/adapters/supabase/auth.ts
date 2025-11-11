@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import type {
   AuthAPI,
   GoogleLoginInput,
@@ -9,11 +8,9 @@ import type {
   SignupOutput,
 } from '../../contracts';
 import { UnauthorizedError } from '../../errors';
+import { supabaseClient } from '../../supabaseClient';
 
-const sb = createClient(
-  import.meta.env.VITE_SUPABASE_URL!,
-  import.meta.env.VITE_SUPABASE_ANON_KEY!,
-);
+const sb = supabaseClient;
 
 export const auth: AuthAPI = {
   async login({ email, password }: LoginInput): Promise<LoginOutput> {
