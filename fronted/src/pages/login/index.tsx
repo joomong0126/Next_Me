@@ -1,20 +1,83 @@
-import { useNavigate } from 'react-router-dom';
-import { Mail } from 'lucide-react';
+import { FormEvent, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/ui/shadcn/button';
 import { Input } from '@/shared/ui/shadcn/input';
 import { Label } from '@/shared/ui/shadcn/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/shadcn/card';
+import { api } from '@/shared/api';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
 
-  const handleContinue = () => {
-    navigate('/onboarding');
-  };
+  const [email, setEmail] = useState('demo@demo.com');
+  const [password, setPassword] = useState('1234');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSignup = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
-    navigate('/onboarding');
+    navigate('/signup');
+  };
+
+  const persistProfile = async () => {
+    try {
+      const profile = await api.auth.me();
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('userProfile', JSON.stringify(profile));
+        window.localStorage.setItem('onboardingCompleted', 'true');
+      }
+    } catch {
+      // ignore profile fetch failures – user still logged in
+    }
+  };
+
+  const redirectTarget = (() => {
+    const fromState = location.state as { from?: string } | null;
+    const candidate = fromState?.from;
+    if (candidate && candidate.startsWith('/')) {
+      return candidate;
+    }
+    return '/app';
+  })();
+
+  const handleAuthSuccess = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+    await persistProfile();
+    navigate(redirectTarget, { replace: true });
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isLoading) return;
+
+    setError(null);
+    setIsLoading(true);
+    try {
+      await api.auth.login({ email, password });
+      await handleAuthSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    if (isLoading) return;
+    setError(null);
+    setIsLoading(true);
+    try {
+      const placeholderEmail = email.trim() || 'google.user@example.com';
+      await api.auth.loginWithGoogle({ email: placeholderEmail, name: 'Google User' });
+      await handleAuthSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google 로그인에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -27,40 +90,58 @@ export default function LoginPage() {
             </div>
           </div>
           <CardTitle className="text-gray-900">Next ME에 오신 걸 환영합니다</CardTitle>
-          <CardDescription className="text-gray-600">AI 기반 커리어 관리를 시작하세요</CardDescription>
+          <CardDescription className="text-gray-600">
+            AI 기반 커리어 관리를 시작하세요
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">이메일</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="name@example.com"
-              className="rounded-lg"
-            />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">비밀번호</Label>
-              <button
-                type="button"
-                onClick={() => alert('비밀번호 찾기 기능은 준비 중입니다.')}
-                className="text-sm text-gray-600 hover:text-gray-900 hover:underline"
-              >
-                비밀번호 찾기
-              </button>
+          <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+              <Label htmlFor="email">이메일</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                className="rounded-lg"
+                required
+                autoComplete="email"
+              />
+              <p className="text-xs text-gray-500">체험 계정: demo@demo.com / 1234</p>
             </div>
-            <Input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              className="rounded-lg"
-            />
-          </div>
-          <Button onClick={handleContinue} className="w-full rounded-lg bg-gray-900 hover:bg-gray-800 text-white">
-            로그인
-          </Button>
-          
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">비밀번호</Label>
+                <button
+                  type="button"
+                  onClick={() => alert('비밀번호 찾기 기능은 준비 중입니다.')}
+                  className="text-sm text-gray-600 hover:text-gray-900 hover:underline"
+                >
+                  비밀번호 찾기
+                </button>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="rounded-lg"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            {error ? <p className="text-sm text-red-500">{error}</p> : null}
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="w-full rounded-lg bg-gray-900 hover:bg-gray-800 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isLoading ? '로그인 중...' : '로그인'}
+            </Button>
+          </form>
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-gray-200" />
@@ -71,9 +152,11 @@ export default function LoginPage() {
           </div>
 
           <Button
+            type="button"
             variant="outline"
-            className="w-full rounded-lg border-gray-300 hover:bg-gray-50"
-            onClick={handleContinue}
+            disabled={isLoading}
+            className="w-full rounded-lg border-gray-300 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            onClick={handleGoogleLogin}
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
               <path

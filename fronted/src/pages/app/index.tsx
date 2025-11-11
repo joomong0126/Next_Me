@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Megaphone, MessageSquare, TrendingUp } from 'lucide-react';
 import { applyTheme } from '@/shared/lib/themes';
 import { Toaster } from '@/shared/ui/shadcn/sonner';
@@ -10,6 +11,7 @@ import { UploadDialog } from '@/features/project-upload';
 import WelcomeDialog from './components/WelcomeDialog';
 import type { Project } from '@/entities/project';
 import type { AppOutletContext } from './types';
+import { api } from '@/shared/api';
 
 const initialProjects: Project[] = [
   {
@@ -165,6 +167,7 @@ const derivePageFromPath = (pathname: string): AppPage => {
 export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [darkMode, setDarkMode] = useState(false);
@@ -234,14 +237,21 @@ export default function AppLayout() {
     setIsSidebarOpen(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('onboardingCompleted');
-    localStorage.removeItem('userProfile');
-    localStorage.removeItem('careerData');
-    sessionStorage.removeItem('welcomeShown');
-    setProjects(initialProjects);
-    setUserRole('');
-    navigate('/intro');
+  const handleLogout = async () => {
+    try {
+      await api.auth.logout();
+    } catch (error) {
+      console.error('Logout failed', error);
+    } finally {
+      queryClient.removeQueries({ queryKey: ['auth', 'me'] });
+      localStorage.removeItem('onboardingCompleted');
+      localStorage.removeItem('userProfile');
+      localStorage.removeItem('careerData');
+      sessionStorage.removeItem('welcomeShown');
+      setProjects(initialProjects);
+      setUserRole('');
+      navigate('/login', { replace: true });
+    }
   };
 
   const toggleDarkMode = () => setDarkMode((prev) => !prev);

@@ -1,27 +1,55 @@
-import type { AuthAPI, LoginInput, LoginOutput, MeOutput } from '../../contracts';
-
-let token: string | null = null;
-
-const me: MeOutput = {
-  id: 'u_1',
-  email: 'demo@demo.com',
-  name: '데모',
-  headline: 'AI 마케터',
-};
+import type {
+  AuthAPI,
+  GoogleLoginInput,
+  LoginInput,
+  LoginOutput,
+  MeOutput,
+  SignupInput,
+  SignupOutput,
+} from '../../contracts';
+import { clearAuthToken, requestJSON, setAuthToken } from './client';
 
 export const auth: AuthAPI = {
-  async login({ email }: LoginInput): Promise<LoginOutput> {
-    token = `mock.${btoa(email)}`;
-    return { token, user: { id: me.id, email: me.email, name: me.name } };
+  async login({ email, password }: LoginInput): Promise<LoginOutput> {
+    const result = await requestJSON<LoginOutput>(
+      '/auth/login',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      },
+      { skipAuth: true },
+    );
+    setAuthToken(result.token);
+    return result;
+  },
+  async loginWithGoogle({ email, name }: GoogleLoginInput): Promise<LoginOutput> {
+    const result = await requestJSON<LoginOutput>(
+      '/auth/google',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email, name }),
+      },
+      { skipAuth: true },
+    );
+    setAuthToken(result.token);
+    return result;
+  },
+  async signup(input: SignupInput): Promise<SignupOutput> {
+    const result = await requestJSON<SignupOutput>(
+      '/auth/signup',
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      },
+      { skipAuth: true },
+    );
+    setAuthToken(result.token);
+    return result;
   },
   async logout() {
-    token = null;
+    clearAuthToken();
   },
-  async me() {
-    if (!token) {
-      throw new Error('401 Unauthorized');
-    }
-    return me;
+  async me(): Promise<MeOutput> {
+    return requestJSON<MeOutput>('/profiles/me');
   },
 };
-

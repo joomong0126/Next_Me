@@ -1,5 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import type { AuthAPI, LoginInput, LoginOutput, MeOutput } from '../../contracts';
+import type {
+  AuthAPI,
+  GoogleLoginInput,
+  LoginInput,
+  LoginOutput,
+  MeOutput,
+  SignupInput,
+  SignupOutput,
+} from '../../contracts';
+import { UnauthorizedError } from '../../errors';
 
 const sb = createClient(
   import.meta.env.VITE_SUPABASE_URL!,
@@ -19,6 +28,12 @@ export const auth: AuthAPI = {
       user: { id: data.user!.id, email: data.user!.email! },
     };
   },
+  async loginWithGoogle(_input: GoogleLoginInput): Promise<LoginOutput> {
+    throw new Error('Google OAuth login is not implemented for the Supabase adapter yet.');
+  },
+  async signup(_input: SignupInput): Promise<SignupOutput> {
+    throw new Error('Signup is not implemented for the Supabase adapter yet.');
+  },
   async logout() {
     // TODO: Extend with any local cleanup or telemetry once Supabase integration is finalized.
     await sb.auth.signOut();
@@ -29,14 +44,14 @@ export const auth: AuthAPI = {
       data: { user },
     } = await sb.auth.getUser();
     if (!user) {
-      throw new Error('401 Unauthorized');
+      throw new UnauthorizedError();
     }
 
     return {
       id: user.id,
       email: user.email!,
       name: user.user_metadata?.name ?? 'User',
+      headline: user.user_metadata?.headline ?? undefined,
     };
   },
 };
-
