@@ -4,6 +4,7 @@ import type { Project, ProjectType } from '@/entities/project';
 import { getCategoryIcon } from '@/entities/project/lib/categoryIcons';
 
 import { Card } from '@/shared/ui/shadcn/card';
+import { isMockSupabaseClient, supabaseClient } from '@/shared/api/supabaseClient';
 
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,8 +23,16 @@ import type { AIGeneratedData } from './types';
 import { useAssistantChat } from './hooks/useAssistantChat';
 import { useAssistantUserProfile } from './hooks/useAssistantUserProfile';
 
+type FileUploadRequestPayload = {
+  kind: 'file';
+  file: File;
+  fileName: string;
+  mimeType: string;
+  size: number;
+};
+
 type UploadRequestPayload =
-  | { kind: 'file'; fileName: string; mimeType: string; size: number }
+  | FileUploadRequestPayload
   | { kind: 'link'; url: string }
   | { kind: 'text'; title: string; content: string };
 
@@ -56,6 +65,67 @@ interface AnalysisResponsePayload {
   };
 }
 
+// Supabase Functions가 돌려준 AI 분석 결과를 화면에서 쓰기 좋은 형태로 변환합니다.
+const mapAnalysisToGeneratedData = (analysis: AnalysisResponsePayload): AIGeneratedData => ({
+  title: analysis.project.title,
+  date: new Date().toLocaleDateString('ko-KR'),
+  format: analysis.metadata.format,
+  tags: analysis.project.tags,
+  summary: analysis.project.summary,
+  category: analysis.project.category,
+  type: analysis.metadata.type,
+  sourceUrl: analysis.metadata.sourceUrl,
+  metadata: {
+    confidence: analysis.metadata.confidence,
+    recommendedNextActions: analysis.metadata.recommendedNextActions,
+  },
+  analysisId: analysis.analysisId,
+  storageId: analysis.uploadId,
+});
+
+// 파일을 저장할 Supabase Storage 버킷 이름을 환경 변수에서 읽어옵니다.
+const resolveSupabaseProjectBucket = () => {
+  const raw =
+    (globalThis as any)?.process?.env?.VITE_SUPABASE_PROJECT_BUCKET ??
+    (import.meta as any)?.env?.VITE_SUPABASE_PROJECT_BUCKET;
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.trim();
+  }
+  return 'assistant-projects';
+};
+
+// AI 분석을 담당하는 Supabase Function 이름을 환경 변수에서 읽어옵니다.
+const resolveAssistantFunctionName = () => {
+  const raw =
+    (globalThis as any)?.process?.env?.VITE_SUPABASE_ASSISTANT_FUNCTION ??
+    (import.meta as any)?.env?.VITE_SUPABASE_ASSISTANT_FUNCTION;
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.trim();
+  }
+  return 'assistant-project-ingest';
+};
+
+// 저장 경로 충돌을 피하기 위해 난수 기반 식별자를 생성합니다.
+const randomIdentifier = () => {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  }
+};
+
+// 파일 이름에 포함된 안전하지 않은 문자를 밑줄로 치환합니다.
+const sanitizeFileName = (name: string) => name.replace(/[^\w.-]/g, '_');
+
+// 날짜/난수와 결합해 Supabase Storage용 업로드 경로를 만들어 줍니다.
+const buildSupabaseUploadPath = (fileName: string) => {
+  const stamp = new Date().toISOString().split('T')[0];
+  const identifier = randomIdentifier();
+  return `assistant/${stamp}/${identifier}-${sanitizeFileName(fileName)}`;
+};
+
+// TODO(supabase): 실제 Supabase Functions가 준비되면 이 mock 경로는 제거하거나 통합합니다.
+// 로컬 개발(mock) 모드에서는 기존 가짜 API 흐름을 그대로 사용합니다.
 const processWithMockService = async (
   payload: UploadRequestPayload,
   userRole: string,
@@ -94,22 +164,93 @@ const processWithMockService = async (
 
   const storedAnalysis = (await storedAnalysisResponse.json()) as AnalysisResponsePayload;
 
-  return {
-    title: storedAnalysis.project.title,
-    date: new Date().toLocaleDateString('ko-KR'),
-    format: storedAnalysis.metadata.format,
-    tags: storedAnalysis.project.tags,
-    summary: storedAnalysis.project.summary,
-    category: storedAnalysis.project.category,
-    type: storedAnalysis.metadata.type,
-    sourceUrl: storedAnalysis.metadata.sourceUrl,
-    metadata: {
-      confidence: storedAnalysis.metadata.confidence,
-      recommendedNextActions: storedAnalysis.metadata.recommendedNextActions,
-    },
-    analysisId: storedAnalysis.analysisId,
-    storageId: storedAnalysis.uploadId,
+  return mapAnalysisToGeneratedData(storedAnalysis);
+};
+
+// 실제 환경에서는 Supabase Storage에 파일을 올리고 Functions로 AI 분석을 요청합니다.
+const processWithRealService = async (
+  payload: UploadRequestPayload,
+  userRole: string,
+): Promise<AIGeneratedData> => {
+  // TODO(supabase): Supabase 연동이 완료되면 isMockSupabaseClient 플래그 대신 환경 변수를 통해 분기하세요.
+  if (isMockSupabaseClient) {
+    return processWithMockService(payload, userRole);
+  }
+
+  const bucket = resolveSupabaseProjectBucket();
+  const functionName = resolveAssistantFunctionName();
+
+  let requestBody: Record<string, unknown> = {
+    kind: payload.kind,
+    userRole,
   };
+
+  if (payload.kind === 'file') {
+    const storageClient = supabaseClient?.storage;
+    if (!storageClient?.from) {
+      throw new Error('Supabase storage 클라이언트를 찾을 수 없습니다.');
+    }
+
+    const targetPath = buildSupabaseUploadPath(payload.fileName);
+    const { data: uploadResult, error: uploadError } = await storageClient
+      .from(bucket)
+      .upload(targetPath, payload.file, {
+        contentType: payload.mimeType,
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(uploadError.message ?? '파일 업로드에 실패했습니다.');
+    }
+
+    const storedPath = uploadResult?.path ?? targetPath;
+
+    requestBody = {
+      ...requestBody,
+      bucket,
+      path: storedPath,
+      originalName: payload.fileName,
+      mimeType: payload.mimeType,
+      size: payload.size,
+    };
+  } else if (payload.kind === 'link') {
+    requestBody = {
+      ...requestBody,
+      url: payload.url,
+    };
+  } else {
+    requestBody = {
+      ...requestBody,
+      title: payload.title,
+      content: payload.content,
+    };
+  }
+
+  const functionsClient = supabaseClient?.functions;
+  if (!functionsClient?.invoke) {
+    throw new Error('Supabase Functions 클라이언트를 찾을 수 없습니다.');
+  }
+
+  const { data, error } = await functionsClient.invoke(functionName, {
+    body: requestBody,
+  });
+
+  if (error) {
+    throw new Error(error.message ?? 'AI 분석 요청 중 오류가 발생했습니다.');
+  }
+
+  if (!data) {
+    throw new Error('AI 분석 응답이 비어 있습니다.');
+  }
+
+  const analysisPayload = (data as { analysis?: AnalysisResponsePayload }).analysis ?? data;
+
+  if (!(analysisPayload as AnalysisResponsePayload)?.project) {
+    throw new Error('AI 분석 결과를 확인할 수 없습니다.');
+  }
+
+  return mapAnalysisToGeneratedData(analysisPayload as AnalysisResponsePayload);
 };
 
 export interface AIAssistantProps {
@@ -147,10 +288,7 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
     setIsGenerating,
     handleSendMessage,
     handleResetChat,
-    startDemoConversation,
-    isDemoRunning,
     handleOrganizeWithAI,
-    handleSaveProjectOrganizing,
   } = useAssistantChat({
     projects,
     selectedProject,
@@ -170,17 +308,25 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
     event.target.value = '';
   };
 
-  const startMockAnalysis = (input: UploadRequestPayload) => {
+  const startAnalysis = (input: UploadRequestPayload) => {
     setIsAnalyzing(true);
     setIsUploadDialogOpen(false);
 
-    void processWithMockService(input, userRole)
+  // TODO(supabase): 실제 배포 시 VITE_USE_MOCK 값을 'false'로 설정해 processWithRealService만 사용하도록 합니다.
+    const processor = import.meta.env.VITE_USE_MOCK === 'true' ? processWithMockService : processWithRealService;
+
+    void processor(input, userRole)
       .then((generatedData) => {
         createProjectFromAI(generatedData);
       })
       .catch((error) => {
         console.error(error);
-        toast.error('AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        const fallbackMessage = 'AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+        if (error instanceof Error && error.message && !error.message.startsWith('MOCK_')) {
+          toast.error(`${fallbackMessage}\n(${error.message})`);
+        } else {
+          toast.error(fallbackMessage);
+        }
       })
       .finally(() => {
         setIsAnalyzing(false);
@@ -193,8 +339,9 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
       return;
     }
 
-    startMockAnalysis({
+    startAnalysis({
       kind: 'file',
+      file,
       fileName: file.name,
       mimeType: file.type,
       size: file.size,
@@ -217,7 +364,7 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
       return;
     }
 
-    startMockAnalysis({ kind: 'link', url: normalizedUrl });
+    startAnalysis({ kind: 'link', url: normalizedUrl });
   };
 
   const handleTextUpload = ({ title, content }: { title: string; content: string }) => {
@@ -226,7 +373,7 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
       return;
     }
 
-    startMockAnalysis({
+    startAnalysis({
       kind: 'text',
       title: title.trim(),
       content: content.trim(),
@@ -395,8 +542,6 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
         onSend={handleSendMessage}
         onFileUpload={handleChatFileUpload}
         isGenerating={isGenerating}
-        onSaveProjectOrganizing={handleSaveProjectOrganizing}
-        onContinueOrganizing={() => undefined}
         onResetChat={handleResetChat}
         onOpenProjectUpload={() => setIsUploadDialogOpen(true)}
       />
@@ -407,8 +552,6 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
         onSelectPrompt={setInputValue}
         onSelectFeature={openFeature}
         selectedProject={selectedProject}
-        onStartDemo={startDemoConversation}
-        isDemoRunning={isDemoRunning}
       />
 
       <UploadProjectDialog

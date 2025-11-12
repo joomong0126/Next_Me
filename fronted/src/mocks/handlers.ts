@@ -96,6 +96,104 @@ const assistantResolveFormat = (upload: AssistantUploadRecord) => {
   return '문서';
 };
 
+const assistantNormalizeWhitespace = (value: string) => value.replace(/\s+/g, ' ').trim();
+
+const assistantHumanizeFileName = (name: string) => {
+  const base = assistantNormalizeWhitespace(
+    assistantRemoveFileExtension(name)
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b(v?\d+(\.\d+)*)\b/gi, ' ')
+      .replace(/\(\s*\)/g, ' '),
+  );
+
+  if (!base) {
+    return '업로드 자료';
+  }
+
+  const words = base.split(' ').map((word) => {
+    if (!word) return '';
+
+    const isUpperCase = word === word.toUpperCase();
+    if (isUpperCase || /[가-힣]/.test(word)) {
+      return word;
+    }
+
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  });
+
+  return assistantNormalizeWhitespace(words.join(' '));
+};
+
+const assistantResolveRoleLabel = (userRole: string) => {
+  const lower = userRole.toLowerCase();
+  if (['marketing', '마케팅'].some((keyword) => lower.includes(keyword))) {
+    return '마케팅';
+  }
+  if (['developer', '개발', '프론트엔드', '백엔드'].some((keyword) => lower.includes(keyword))) {
+    return '제품/개발';
+  }
+  return '';
+};
+
+const assistantExtractTopKeywords = (text: string, limit = 4) => {
+  if (!text) return [];
+  const seen = new Set<string>();
+
+  for (const token of text.split(/[\s,]+/)) {
+    const normalized = token.replace(/[^0-9a-zA-Z가-힣#+]/g, '').trim();
+    if (normalized.length < 2) continue;
+
+    const keyword =
+      normalized.length <= 3
+        ? normalized.toUpperCase()
+        : normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+
+    if (!seen.has(keyword)) {
+      seen.add(keyword);
+    }
+
+    if (seen.size >= limit) {
+      break;
+    }
+  }
+
+  return Array.from(seen);
+};
+
+const assistantGenerateTitle = (upload: AssistantUploadRecord, category: string, userRole: string) => {
+  const roleLabel = assistantResolveRoleLabel(userRole);
+
+  if (upload.kind === 'file') {
+    const baseTitle = assistantHumanizeFileName(upload.name);
+    if (roleLabel) {
+      return `${baseTitle} ${roleLabel} 프로젝트`;
+    }
+    return `${baseTitle} 프로젝트`;
+  }
+
+  if (upload.kind === 'link' && upload.sourceUrl) {
+    try {
+      const hostname = new URL(upload.sourceUrl).hostname.replace(/^www\./, '');
+      return `${hostname} 인사이트 분석`;
+    } catch {
+      // fall through to default
+    }
+  }
+
+  if (upload.kind === 'text' && upload.rawContent) {
+    const trimmed = assistantNormalizeWhitespace(upload.rawContent);
+    const firstSentence =
+      trimmed.split(/[.!?…\n]/).map((part) => part.trim()).find((part) => part.length > 6) ?? trimmed.slice(0, 40);
+    return `${firstSentence} – AI 요약`;
+  }
+
+  if (upload.name) {
+    return `${upload.name} ${category}`;
+  }
+
+  return roleLabel ? `${roleLabel} 프로젝트 제안` : 'AI 생성 프로젝트';
+};
+
 const assistantResolveCategory = (kind: AssistantUploadKind, userRole: string) => {
   const lowerRole = userRole.toLowerCase();
   const isMarketing = ['marketing', '마케팅'].some((keyword) => lowerRole.includes(keyword));
@@ -139,41 +237,56 @@ const assistantResolveCategory = (kind: AssistantUploadKind, userRole: string) =
   }
 };
 
-const assistantGenerateTags = (upload: AssistantUploadRecord) => {
-  const baseTags = ['AI 분석', '자동 생성'];
+const assistantGenerateTags = (
+  upload: AssistantUploadRecord,
+  title: string,
+  category: string,
+  format: string,
+) => {
+  const keywords = assistantExtractTopKeywords(title);
+  const baseTags = new Set<string>(['AI 분석', '자동 생성', format, category]);
 
-  if (upload.kind === 'file') {
-    return [assistantResolveFormat(upload), '파일 업로드', ...baseTags];
+  for (const keyword of keywords) {
+    baseTags.add(keyword);
   }
 
   if (upload.kind === 'link' && upload.sourceUrl) {
-    return [upload.sourceUrl, '링크', ...baseTags];
+    baseTags.add(new URL(upload.sourceUrl).hostname.replace(/^www\./, ''));
   }
 
   if (upload.kind === 'text') {
-    return [upload.name || '텍스트 입력', '요약', ...baseTags];
+    baseTags.add('텍스트 요약');
   }
 
-  return baseTags;
+  return Array.from(baseTags);
 };
 
-const assistantGenerateSummary = (upload: AssistantUploadRecord) => {
+const assistantGenerateSummary = (
+  upload: AssistantUploadRecord,
+  title: string,
+  category: string,
+  userRole: string,
+) => {
+  const roleLabel = assistantResolveRoleLabel(userRole);
+
   if (upload.kind === 'file') {
-    return `"${assistantRemoveFileExtension(upload.name)}" 파일을 분석하여 프로젝트 개요와 주요 인사이트를 정리했습니다.`;
+    return `"${title}" 자료에서 핵심 목적과 결과를 추출해 ${category} 관점의 인사이트를 정리했습니다.${
+      roleLabel ? ` ${roleLabel} 담당자가 바로 활용할 수 있는 요약본입니다.` : ''
+    }`;
   }
 
   if (upload.kind === 'link' && upload.sourceUrl) {
-    return `${upload.sourceUrl}의 핵심 콘텐츠를 분석해 프로젝트 아이디어와 적용 포인트를 도출했습니다.`;
+    return `${upload.sourceUrl}의 주요 내용을 분석하고 ${category} 전략으로 연결할 수 있는 아이디어를 뽑아냈습니다.`;
   }
 
   if (upload.kind === 'text' && upload.rawContent) {
     const trimmed = upload.rawContent.trim();
     const preview = trimmed.slice(0, 120).replace(/\s+/g, ' ');
     const suffix = trimmed.length > 120 ? '...' : '';
-    return `제공하신 텍스트를 기반으로 프로젝트 요약과 개선 아이디어를 구성했습니다: ${preview}${suffix}`;
+    return `제공하신 텍스트를 바탕으로 프로젝트 목적과 실행 전략을 구조화했습니다: ${preview}${suffix}`;
   }
 
-  return '업로드한 자료를 바탕으로 프로젝트 정보를 구성했습니다.';
+  return `${category} 관점에서 자료를 분석해 프로젝트 정보를 구성했습니다.`;
 };
 
 const assistantGenerateRecommendedActions = (category: string) => [
@@ -402,28 +515,25 @@ export const handlers = [
       return HttpResponse.json({ message: 'Upload not found' }, { status: 404 });
     }
 
+    const category = assistantResolveCategory(upload.kind, userRole ?? '');
+    const format = assistantResolveFormat(upload);
+    const title = assistantGenerateTitle(upload, category, userRole ?? '');
+
     const analysis: AssistantAnalysisRecord = {
       analysisId: `analysis_${crypto.randomUUID()}`,
       uploadId,
       project: {
-        title:
-          upload.kind === 'file'
-            ? assistantRemoveFileExtension(upload.name)
-            : upload.kind === 'link'
-            ? upload.name
-            : upload.name || 'AI 생성 프로젝트',
-        summary: assistantGenerateSummary(upload),
-        tags: assistantGenerateTags(upload),
-        category: assistantResolveCategory(upload.kind, userRole ?? ''),
+        title,
+        summary: assistantGenerateSummary(upload, title, category, userRole ?? ''),
+        tags: assistantGenerateTags(upload, title, category, format),
+        category,
       },
       metadata: {
-        format: assistantResolveFormat(upload),
+        format,
         type: upload.kind === 'text' ? 'project' : upload.kind === 'link' ? 'link' : 'file',
         sourceUrl: upload.sourceUrl,
         confidence: 0.92,
-        recommendedNextActions: assistantGenerateRecommendedActions(
-          assistantResolveCategory(upload.kind, userRole ?? ''),
-        ),
+        recommendedNextActions: assistantGenerateRecommendedActions(category),
       },
     };
 

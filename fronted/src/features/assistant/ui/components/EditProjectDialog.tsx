@@ -20,7 +20,7 @@ interface EditProjectDialogProps {
   onClose: () => void;
   onSave: (projectId: number, data: EditProjectFormValues) => void;
   availableCategories: string[];
-  onOrganizeWithAI: (project: Project) => void;
+  onOrganizeWithAI: (project: Project) => void | Promise<void>;
 }
 
 export interface EditProjectFormValues {
@@ -186,7 +186,7 @@ export function EditProjectDialog({
           <Button
             variant="outline"
             className="w-full bg-gradient-to-r from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 dark:from-purple-950 dark:to-blue-950 border-purple-200 dark:border-purple-800"
-            onClick={() => onOrganizeWithAI(project)}
+            onClick={() => void onOrganizeWithAI(project)}
           >
             <Bot className="w-4 h-4 mr-2" />
             AI와 대화를 통해 프로젝트 정리하기

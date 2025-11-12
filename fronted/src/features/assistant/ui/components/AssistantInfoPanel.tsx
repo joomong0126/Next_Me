@@ -13,8 +13,6 @@ interface AssistantInfoPanelProps {
   onSelectPrompt: (prompt: string) => void;
   onSelectFeature: (feature: string) => void;
   selectedProject: Project | null;
-  onStartDemo: () => void;
-  isDemoRunning: boolean;
 }
 
 const FEATURE_BUTTONS = [
@@ -31,8 +29,6 @@ export function AssistantInfoPanel({
   onSelectPrompt,
   onSelectFeature,
   selectedProject,
-  onStartDemo,
-  isDemoRunning,
 }: AssistantInfoPanelProps) {
   const handleEditProfile = () => {
     window.location.hash = '#settings';
@@ -151,16 +147,6 @@ export function AssistantInfoPanel({
                 </div>
               )}
             </div>
-            {selectedProject.id === 1 && (
-              <Button
-                onClick={onStartDemo}
-                disabled={isDemoRunning}
-                className="w-full mt-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                {isDemoRunning ? '데모 진행 중...' : '데모 대화 시작'}
-              </Button>
-            )}
           </Card>
         </div>
       )}
