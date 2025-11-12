@@ -257,9 +257,19 @@ export interface AIAssistantProps {
   projects: Project[];
   setProjects: Dispatch<SetStateAction<Project[]>>;
   userRole: string;
+  welcomeMessage?: string;
+  showProjectSidebar?: boolean;
+  showInfoPanel?: boolean;
 }
 
-export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProps) {
+export function AIAssistant({
+  projects,
+  setProjects,
+  userRole,
+  welcomeMessage,
+  showProjectSidebar = true,
+  showInfoPanel = true,
+}: AIAssistantProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
 
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
@@ -289,6 +299,7 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
     handleSendMessage,
     handleResetChat,
     handleOrganizeWithAI,
+    handleSaveProjectOrganizing,
   } = useAssistantChat({
     projects,
     selectedProject,
@@ -298,7 +309,17 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
     setProjects,
     setProjectToEdit,
     setIsEditDialogOpen,
+    welcomeMessage,
   });
+
+  const handleContinueOrganizing = () => {
+    if (!selectedProject) {
+      toast.error('프로젝트를 선택한 후 계속 진행해 주세요.');
+      return;
+    }
+
+    void handleOrganizeWithAI(selectedProject);
+  };
 
   const handleChatFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -524,15 +545,17 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
 
   return (
     <div className="h-[calc(100vh-8rem)] flex gap-4">
-      <ProjectSidebar
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
-        onOpenLoadDialog={() => setLoadProjectDialogOpen(true)}
-        onDeleteProject={handleDeleteProject}
-        onEditProject={openEditDialog}
-        onViewProjectDetail={handleViewProjectDetail}
-      />
+      {showProjectSidebar && (
+        <ProjectSidebar
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onOpenUploadDialog={() => setIsUploadDialogOpen(true)}
+          onOpenLoadDialog={() => setLoadProjectDialogOpen(true)}
+          onDeleteProject={handleDeleteProject}
+          onEditProject={openEditDialog}
+          onViewProjectDetail={handleViewProjectDetail}
+        />
+      )}
 
       <ChatPanel
         messages={messages}
@@ -542,17 +565,21 @@ export function AIAssistant({ projects, setProjects, userRole }: AIAssistantProp
         onSend={handleSendMessage}
         onFileUpload={handleChatFileUpload}
         isGenerating={isGenerating}
+        onSaveProjectOrganizing={handleSaveProjectOrganizing}
+        onContinueOrganizing={handleContinueOrganizing}
         onResetChat={handleResetChat}
         onOpenProjectUpload={() => setIsUploadDialogOpen(true)}
       />
 
-      <AssistantInfoPanel
-        userProfile={userProfile}
-        suggestedPrompts={[...DEFAULT_SUGGESTED_PROMPTS]}
-        onSelectPrompt={setInputValue}
-        onSelectFeature={openFeature}
-        selectedProject={selectedProject}
-      />
+      {showInfoPanel && (
+        <AssistantInfoPanel
+          userProfile={userProfile}
+          suggestedPrompts={[...DEFAULT_SUGGESTED_PROMPTS]}
+          onSelectPrompt={setInputValue}
+          onSelectFeature={openFeature}
+          selectedProject={selectedProject}
+        />
+      )}
 
       <UploadProjectDialog
         open={isUploadDialogOpen}

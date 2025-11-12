@@ -14,12 +14,15 @@ const DEFAULT_WELCOME_MESSAGE =
 
 const HISTORY_LIMIT = 10;
 
-const buildWelcomeMessage = (projectId: number, projectTitle?: string | null): AssistantMessage => ({
+const buildWelcomeMessage = (
+  projectId: number,
+  options?: { projectTitle?: string | null; welcomeMessage?: string },
+): AssistantMessage => ({
   projectId,
   role: 'ai',
-  content: projectTitle
-    ? `안녕하세요! "${projectTitle}" 프로젝트를 함께 정리해볼까요?\n궁금한 내용을 자유롭게 말씀해 주세요.`
-    : DEFAULT_WELCOME_MESSAGE,
+  content: options?.projectTitle
+    ? `안녕하세요! "${options.projectTitle}" 프로젝트를 함께 정리해볼까요?\n궁금한 내용을 자유롭게 말씀해 주세요.`
+    : options?.welcomeMessage ?? DEFAULT_WELCOME_MESSAGE,
   timestamp: new Date(),
 });
 
@@ -166,6 +169,7 @@ interface UseAssistantChatParams {
   setProjects: Dispatch<SetStateAction<Project[]>>;
   setProjectToEdit: Dispatch<SetStateAction<Project | null>>;
   setIsEditDialogOpen: Dispatch<SetStateAction<boolean>>;
+  welcomeMessage?: string;
 }
 
 export interface UseAssistantChatResult {
@@ -190,8 +194,9 @@ export function useAssistantChat({
   setProjects,
   setProjectToEdit,
   setIsEditDialogOpen,
+  welcomeMessage,
 }: UseAssistantChatParams): UseAssistantChatResult {
-  const [messages, setMessages] = useState<AssistantMessage[]>([buildWelcomeMessage(0)]);
+  const [messages, setMessages] = useState<AssistantMessage[]>([buildWelcomeMessage(0, { welcomeMessage })]);
   const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [organizingProjectIds, setOrganizingProjectIds] = useState<number[]>([]);
@@ -218,11 +223,11 @@ export function useAssistantChat({
     }
 
     if (!data || data.length === 0) {
-      return [buildWelcomeMessage(projectId, projectTitle)];
+      return [buildWelcomeMessage(projectId, { projectTitle, welcomeMessage })];
     }
 
     return data.map(mapRowToMessage);
-  }, []);
+  }, [welcomeMessage]);
 
   const registerOrganizingProject = useCallback((projectId: number) => {
     // 이미 organize 흐름을 시작한 프로젝트 목록을 기억하여 이후 재호출 시 메시지를 재사용합니다.
@@ -239,12 +244,12 @@ export function useAssistantChat({
 
   useEffect(() => {
     if (selectedProjectId === null) {
-      setMessages([buildWelcomeMessage(0)]);
+      setMessages([buildWelcomeMessage(0, { welcomeMessage })]);
       return;
     }
 
     if (!organizingProjectIds.includes(selectedProjectId)) {
-      setMessages([buildWelcomeMessage(selectedProjectId, selectedProject?.title)]);
+      setMessages([buildWelcomeMessage(selectedProjectId, { projectTitle: selectedProject?.title, welcomeMessage })]);
       return;
     }
 
@@ -260,7 +265,12 @@ export function useAssistantChat({
         console.error('Failed to load messages', error);
         if (!isCancelled) {
           toast.error('메시지를 불러오지 못했습니다.');
-          setMessages([buildWelcomeMessage(selectedProjectId, selectedProject?.title)]);
+          setMessages([
+            buildWelcomeMessage(selectedProjectId, {
+              projectTitle: selectedProject?.title,
+              welcomeMessage,
+            }),
+          ]);
         }
       }
     };
@@ -270,7 +280,7 @@ export function useAssistantChat({
     return () => {
       isCancelled = true;
     };
-  }, [fetchMessagesForProject, organizingProjectIds, selectedProject?.title, selectedProjectId]);
+  }, [fetchMessagesForProject, organizingProjectIds, selectedProject?.title, selectedProjectId, welcomeMessage]);
 
   const handleSendMessage = useCallback(async () => {
     const trimmed = inputValue.trim();
@@ -596,7 +606,7 @@ export function useAssistantChat({
     if (!confirm('대화 내용을 모두 삭제하시겠습니까?')) return;
 
     if (selectedProjectId === null) {
-      setMessages([buildWelcomeMessage(0)]);
+      setMessages([buildWelcomeMessage(0, { welcomeMessage })]);
       toast.success('대화가 초기화되었습니다');
       return;
     }
@@ -604,14 +614,17 @@ export function useAssistantChat({
     try {
       await supabaseClient.from('assistant_messages').delete().eq('project_id', selectedProjectId);
 
-      const welcomeMessage = buildWelcomeMessage(selectedProjectId, selectedProject?.title);
+      const projectWelcomeMessage = buildWelcomeMessage(selectedProjectId, {
+        projectTitle: selectedProject?.title,
+        welcomeMessage,
+      });
       const { data: insertedWelcome, error: insertError } = (await supabaseClient
         .from('assistant_messages')
         .insert({
           project_id: selectedProjectId,
-          role: welcomeMessage.role,
-          content: welcomeMessage.content,
-          created_at: welcomeMessage.timestamp.toISOString(),
+          role: projectWelcomeMessage.role,
+          content: projectWelcomeMessage.content,
+          created_at: projectWelcomeMessage.timestamp.toISOString(),
         })
         .select('id, project_id, role, content, created_at, is_project_organizing')
         .single()) as {
@@ -623,14 +636,14 @@ export function useAssistantChat({
         throw insertError;
       }
 
-      setMessages(insertedWelcome ? [mapRowToMessage(insertedWelcome)] : [welcomeMessage]);
+      setMessages(insertedWelcome ? [mapRowToMessage(insertedWelcome)] : [projectWelcomeMessage]);
       autoSaveTriggeredProjectIdsRef.current.delete(selectedProjectId);
       toast.success('대화가 초기화되었습니다');
     } catch (error) {
       console.error('Failed to reset chat', error);
       toast.error('대화를 초기화하지 못했습니다.');
     }
-  }, [selectedProjectId, selectedProject?.title]);
+  }, [selectedProjectId, selectedProject?.title, welcomeMessage]);
 
   const handleOrganizeWithAI = useCallback(
     async (project: Project) => {

@@ -10,6 +10,7 @@ export default function AssistantPage() {
       projects={projects}
       setProjects={setProjects}
       userRole={userRole}
+      showInfoPanel={false}
     />
   );
 }

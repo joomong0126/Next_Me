@@ -3,7 +3,7 @@ import { ChangeEvent, KeyboardEvent } from 'react';
 import type { Project } from '@/entities/project';
 import type { AssistantMessage } from '../types';
 
-import { Bot, Loader2, RotateCcw, Send, User, Plus } from 'lucide-react';
+import { Bot, Loader2, MessageSquare, RotateCcw, Send, User, Plus, Check } from 'lucide-react';
 
 import { Button } from '@/shared/ui/shadcn/button';
 import { Textarea } from '@/shared/ui/shadcn/textarea';
@@ -16,6 +16,8 @@ interface ChatPanelProps {
   onSend: () => void | Promise<void>;
   onFileUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   isGenerating: boolean;
+  onSaveProjectOrganizing: (projectId: number) => void | Promise<void>;
+  onContinueOrganizing: () => void;
   onResetChat: () => void | Promise<void>;
   onOpenProjectUpload: () => void;
 }
@@ -28,6 +30,8 @@ export function ChatPanel({
   onSend,
   onFileUpload,
   isGenerating,
+  onSaveProjectOrganizing,
+  onContinueOrganizing,
   onResetChat,
   onOpenProjectUpload,
 }: ChatPanelProps) {
@@ -91,6 +95,23 @@ export function ChatPanel({
                       })}
                     </p>
                   </div>
+
+                  {message.role === 'ai' && message.isProjectOrganizing && message.projectId && (
+                    <div className="mt-2 flex gap-2">
+                      <Button onClick={onContinueOrganizing} variant="outline" size="sm" className="rounded-lg">
+                        <MessageSquare className="w-3 h-3 mr-1" />
+                        더 대화하기
+                      </Button>
+                      <Button
+                        onClick={() => void onSaveProjectOrganizing(message.projectId!)}
+                        size="sm"
+                        className="rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                      >
+                        <Check className="w-3 h-3 mr-1" />
+                        저장하기
+                      </Button>
+                    </div>
+                  )}
 
                   {message.role === 'ai' && message.action === 'registerProject' && (
                     <div className="mt-3">

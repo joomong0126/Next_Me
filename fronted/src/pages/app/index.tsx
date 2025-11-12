@@ -16,13 +16,14 @@ import { toast } from 'sonner';
 
 const breadcrumbMap: Record<AppPage, string> = {
   assistant: 'AI Assistant',
+  'career-generator': 'AI 커리어 생성기',
   projects: 'Projects',
   skills: 'Skills & Insights',
   goals: 'Goals',
   settings: 'Settings',
 };
 
-const appPages: AppPage[] = ['assistant', 'projects', 'skills', 'goals', 'settings'];
+const appPages: AppPage[] = ['assistant', 'career-generator', 'projects', 'skills', 'goals', 'settings'];
 
 const derivePageFromPath = (pathname: string): AppPage => {
   const [, , segment] = pathname.split('/');

@@ -1,4 +1,4 @@
-import { Bot, FolderKanban, Brain, Target, Settings, Sparkles, X } from 'lucide-react';
+import { Bot, FolderKanban, Brain, Target, Settings, Sparkles, Wand2, X } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/shadcn/avatar';
 import { Button } from '@/shared/ui/shadcn/button';
 import type { AppPage } from '@/shared/types/app';
@@ -10,11 +10,12 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-const menuItems: Array<{ id: AppPage; label: string; icon: typeof FolderKanban }> = [
+const menuItems: Array<{ id: AppPage; label: string; icon: typeof FolderKanban; isComingSoon?: boolean }> = [
   { id: 'assistant', label: 'AI Assistant', icon: Bot },
+  { id: 'career-generator', label: 'AI 커리어 생성기', icon: Wand2 },
   { id: 'projects', label: 'Projects', icon: FolderKanban },
-  { id: 'skills', label: 'Skills & Insights', icon: Brain },
-  { id: 'goals', label: 'Goals', icon: Target },
+  { id: 'skills', label: 'Skills & Insights', icon: Brain, isComingSoon: true },
+  { id: 'goals', label: 'Goals', icon: Target, isComingSoon: true },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -70,11 +71,17 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
         <div className="space-y-1">
            {menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = currentPage === item.id;
+            const isActive = !item.isComingSoon && currentPage === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => handleNavigate(item.id)}
+                onClick={() => {
+                  if (item.isComingSoon) {
+                    window.alert('해당 기능은 곧 제공될 예정입니다. 조금만 기다려 주세요!');
+                    return;
+                  }
+                  handleNavigate(item.id);
+                }}
                 className={`w-full group relative flex items-center gap-3 px-4 py-3.5 rounded-lg transition-all duration-200 ${
                   isActive
                     ? 'bg-white/10 text-white shadow-lg'
@@ -94,7 +101,12 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
                   <Icon className="w-5 h-5" />
                 </div>
                 
-                 <span className="flex-1 text-left font-medium">{item.label}</span>
+                 <span className="flex-1 text-left font-medium">
+                  {item.label}
+                  {item.isComingSoon && (
+                    <span className="ml-2 text-xs text-gray-500/80">(Coming Soon)</span>
+                  )}
+                </span>
               </button>
             );
           })}
