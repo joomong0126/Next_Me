@@ -6,6 +6,8 @@ import os
 import json
 import base64
 import mimetypes
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
@@ -17,6 +19,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 import requests
 from urllib.parse import urlparse
+from fastapi import UploadFile
 
 # .env 파일 로드
 load_dotenv(verbose=True)
@@ -269,7 +272,7 @@ def analyze_text_with_llm(text: str) -> str:
         return ""
 
 
-def extract_metadata_from_analysis(analysis_text: str) -> Dict[str, Any]:
+def extract_metadata_from_analysis(analysis_text: str, source_summary: str = None) -> Dict[str, Any]:
     """분석 결과에서 구조화된 메타데이터를 추출합니다."""
     try:
         prompt = f"""다음 분석 결과를 바탕으로 JSON 형식의 메타데이터를 생성해주세요.
@@ -279,6 +282,7 @@ def extract_metadata_from_analysis(analysis_text: str) -> Dict[str, Any]:
   "project": {{
     "title": "프로젝트 제목 또는 null",
     "category": "프로젝트 카테고리 또는 null",
+    "summary": "프로젝트 요약 또는 null",
     "tags": ["키워드1", "키워드2"] 또는 [],
     "roles": ["역할1", "역할2"] 또는 [],
     "achievements": ["성과1", "성과2"] 또는 [],
@@ -305,6 +309,11 @@ def extract_metadata_from_analysis(analysis_text: str) -> Dict[str, Any]:
         )
         
         result = json.loads(response.choices[0].message.content)
+        
+        # source_summary가 제공되면 summary 필드를 덮어씁니다
+        if source_summary and "project" in result:
+            result["project"]["summary"] = source_summary
+        
         return result
         
     except json.JSONDecodeError:
@@ -313,6 +322,7 @@ def extract_metadata_from_analysis(analysis_text: str) -> Dict[str, Any]:
             "project": {
                 "title": None,
                 "category": None,
+                "summary": source_summary,
                 "tags": [],
                 "roles": [],
                 "achievements": [],
@@ -327,6 +337,7 @@ def extract_metadata_from_analysis(analysis_text: str) -> Dict[str, Any]:
             "project": {
                 "title": None,
                 "category": None,
+                "summary": source_summary,
                 "tags": [],
                 "roles": [],
                 "achievements": [],
@@ -377,15 +388,27 @@ def detect_file_type(file_path: str) -> str:
     return "unknown"
 
 
-def extract_project_metadata(file_path: str) -> Dict[str, Any]:
+def extract_project_metadata(file_path: str, source_name: str = None) -> Dict[str, Any]:
     """프로젝트 파일을 분석하여 메타데이터를 추출합니다."""
     file_type = detect_file_type(file_path)
+    
+    # source_summary 생성
+    if source_name:
+        file_name = source_name
+    else:
+        file_name = os.path.basename(file_path) if not is_url(file_path) else file_path
+    
+    if file_type == "link":
+        source_summary = f"URL: {file_path}"
+    else:
+        source_summary = f"{file_name} 업로드됨"
     
     if file_type == "unknown":
         return {
             "project": {
                 "title": None,
                 "category": None,
+                "summary": source_summary,
                 "tags": [],
                 "roles": [],
                 "achievements": [],
@@ -418,6 +441,7 @@ def extract_project_metadata(file_path: str) -> Dict[str, Any]:
             "project": {
                 "title": None,
                 "category": None,
+                "summary": source_summary,
                 "tags": [],
                 "roles": [],
                 "achievements": [],
@@ -429,9 +453,117 @@ def extract_project_metadata(file_path: str) -> Dict[str, Any]:
         }
     
     # 구조화된 메타데이터 추출
-    metadata = extract_metadata_from_analysis(analysis_text)
+    metadata = extract_metadata_from_analysis(analysis_text, source_summary)
     
     return metadata
+
+
+def analyze_project_from_formdata(
+    file: Optional[UploadFile] = None,
+    url: Optional[str] = None,
+    text: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    FormData로 받은 file, url, text를 분석하여 프로젝트 메타데이터를 추출합니다.
+    
+    Args:
+        file: 업로드된 파일 (선택)
+        url: 분석할 URL (선택)
+        text: 분석할 텍스트 (선택)
+    
+    Returns:
+        프로젝트 메타데이터 딕셔너리
+    """
+    temp_file_path = None
+    
+    try:
+        # 우선순위: file > url > text
+        if file and file.filename:
+            # 파일을 임시 디렉토리에 저장
+            temp_dir = tempfile.mkdtemp()
+            temp_file_path = os.path.join(temp_dir, file.filename)
+            
+            # 파일 저장
+            with open(temp_file_path, "wb") as f:
+                shutil.copyfileobj(file.file, f)
+            
+            # 파일 분석 (원본 파일명 전달)
+            metadata = extract_project_metadata(temp_file_path, source_name=file.filename)
+            return metadata
+            
+        elif url:
+            # URL 분석
+            metadata = extract_project_metadata(url)
+            return metadata
+            
+        elif text:
+            # 텍스트 직접 분석
+            source_summary = "텍스트 직접 입력"
+            analysis_text = analyze_text_with_llm(text)
+            
+            if not analysis_text:
+                return {
+                    "project": {
+                        "title": None,
+                        "category": None,
+                        "summary": source_summary,
+                        "tags": [],
+                        "roles": [],
+                        "achievements": [],
+                        "tools": [],
+                        "description": None
+                    },
+                    "status": "error",
+                    "error": "텍스트 분석에 실패했습니다."
+                }
+            
+            # 구조화된 메타데이터 추출
+            metadata = extract_metadata_from_analysis(analysis_text, source_summary)
+            return metadata
+            
+        else:
+            # 입력이 없는 경우
+            return {
+                "project": {
+                    "title": None,
+                    "category": None,
+                    "summary": None,
+                    "tags": [],
+                    "roles": [],
+                    "achievements": [],
+                    "tools": [],
+                    "description": None
+                },
+                "status": "error",
+                "error": "file, url, text 중 하나 이상을 제공해야 합니다."
+            }
+            
+    except Exception as e:
+        print(f"FormData 분석 오류: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "project": {
+                "title": None,
+                "category": None,
+                "summary": None,
+                "tags": [],
+                "roles": [],
+                "achievements": [],
+                "tools": [],
+                "description": None
+            },
+            "status": "error",
+            "error": f"분석 중 오류가 발생했습니다: {str(e)}"
+        }
+    finally:
+        # 임시 파일 정리
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                temp_dir = os.path.dirname(temp_file_path)
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                print(f"임시 파일 삭제 오류: {str(e)}")
 
 
 def main():

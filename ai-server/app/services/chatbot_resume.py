@@ -1,3 +1,4 @@
+##url로 돌려주기 !!!
 ## 자기소개서 작성 챗봇 AI
 ## 넥스터(자기소개서 챗봇)를 통해 사용자와 대화하며 자기소개서를 작성합니다.
 
@@ -721,15 +722,13 @@ def process_cover_letter_chatbot(
         elif current_state == "final_confirmation":
             # 최종 확인 단계
             if user_message and (is_confirmation(user_message) or "pdf" in user_message.lower() or "다운로드" in user_message or "word" in user_message.lower() or "docx" in user_message.lower() or "저장" in user_message):
-                # Word 파일 생성 및 저장
-                metadata = save_cover_letter_as_word(draft_cover_letter, cover_letter_data)
-                
+                # 파일 생성은 main.py에서 처리하므로 여기서는 메시지만 반환
                 return {
-                    "message": f"완료 ✅\n\nWord 파일로 저장했어요.\n\n파일명: {metadata.get('filename', 'N/A')}\n파일 경로: {metadata.get('filepath', 'N/A')}\n\n다음에는 Settings에 '활동·공모전 수상 내역'도 추가하면 더 풍부한 자기소개서가 만들어질 거예요.",
+                    "message": "완료 ✅\n\nWord 파일을 생성 중입니다...",
                     "updated_data": cover_letter_data,
                     "status": "completed",
                     "next_state": "completed",
-                    "metadata": metadata
+                    "draft_cover_letter": draft_cover_letter
                 }
             else:
                 return {
@@ -739,6 +738,57 @@ def process_cover_letter_chatbot(
                     "next_state": "final_confirmation",
                     "draft_cover_letter": draft_cover_letter,
                     "writing_style": writing_style
+                }
+        
+        elif current_state == "completed":
+            # 완료 후 추가 질의응답 처리
+            if user_message:
+                # 간단한 질의응답 처리
+                try:
+                    prompt = f"""사용자가 자기소개서 작성을 완료했습니다.
+
+현재 생성된 자기소개서:
+{draft_cover_letter[:500] if draft_cover_letter else "없음"}...
+
+사용자의 추가 질문: {user_message}
+
+사용자의 질문에 친절하게 답변해주세요.
+- 자기소개서를 다시 수정하고 싶다면: "새로운 자기소개서를 작성하려면 처음부터 다시 시작해주세요"라고 안내
+- 파일 다운로드 관련 질문: "이미 생성된 파일을 다운로드하실 수 있습니다"라고 안내
+- 일반적인 질문이면 친절하게 답변
+- 자기소개서 작성 팁이나 조언을 요청하면 구체적으로 답변"""
+
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.7,
+                        max_tokens=500
+                    )
+                    
+                    return {
+                        "message": response.choices[0].message.content,
+                        "updated_data": cover_letter_data,
+                        "status": "completed",
+                        "next_state": "completed",
+                        "draft_cover_letter": draft_cover_letter
+                    }
+                    
+                except Exception as e:
+                    print(f"완료 후 질의응답 오류: {str(e)}")
+                    return {
+                        "message": "질문에 답변하는 중 오류가 발생했습니다. 다시 질문해주세요.",
+                        "updated_data": cover_letter_data,
+                        "status": "completed",
+                        "next_state": "completed",
+                        "draft_cover_letter": draft_cover_letter
+                    }
+            else:
+                return {
+                    "message": "자기소개서가 완성되었습니다! 추가로 궁금한 점이 있으시면 언제든 물어보세요.",
+                    "updated_data": cover_letter_data,
+                    "status": "completed",
+                    "next_state": "completed",
+                    "draft_cover_letter": draft_cover_letter
                 }
         
         else:
