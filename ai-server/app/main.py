@@ -436,7 +436,6 @@ async def refine_project(request: Request):
             
             # 세션 업데이트
             session["project"] = result.get("project", session["project"])
-            session["status"] = result.get("status", session["status"])
             
             # AI 응답을 대화 히스토리에 추가
             if result.get("message"):
@@ -450,8 +449,9 @@ async def refine_project(request: Request):
                 "message": result.get("message", "응답을 생성하는 중 오류가 발생했습니다.")
             }
             
-            # 완료 상태인 경우 프로젝트 데이터도 함께 반환
-            if result.get("status") == "completed":
+            # 완료 메시지가 포함되면 프로젝트 데이터도 함께 반환
+            message = result.get("message", "")
+            if result.get("project") and ("보강했어" in message or "저장되었습니다" in message):
                 response_data["project"] = result.get("project")
             
             return response_data

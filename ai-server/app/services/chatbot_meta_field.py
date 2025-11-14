@@ -388,8 +388,7 @@ def generate_conversational_response(
         final_summary = format_metadata_summary(metadata)
         return {
             "message": f"📋 **수정된 내용 미리보기**\n\n{final_summary}\n\n더 수정할 부분이 있을까요, 아니면 저장할까요?",
-            "updated_metadata": metadata,
-            "status": "preview"
+            "updated_metadata": metadata
         }
     
     # 완료/저장/종료 요청 확인 → 최종 확인 단계로
@@ -397,8 +396,7 @@ def generate_conversational_response(
         final_summary = format_metadata_summary(metadata)
         return {
             "message": f"📋 **최종으로 올라갈 메타데이터**\n\n{final_summary}\n\n이렇게 수정하는게 맞나요?\n\n맞으면 '네'라고 말씀해주시고, 수정할 부분이 있으면 알려주세요!",
-            "updated_metadata": metadata,
-            "status": "preview"  # 최종 확인은 preview 상태
+            "updated_metadata": metadata
         }
     
     # 사용자 메시지가 있는 경우 - LLM으로 메타데이터 추출 및 업데이트
@@ -419,8 +417,7 @@ def generate_conversational_response(
                 final_summary = format_metadata_summary(metadata)
                 return {
                     "message": f"✅ **수정사항이 저장되었습니다!**\n\n{final_summary}\n\n프로젝트 정보가 업데이트되었어요! 다음에 보자! 💪",
-                    "updated_metadata": metadata,
-                    "status": "completed"  # 슈퍼베이스로 전달
+                    "updated_metadata": metadata
                 }
             
             # preview 상태에서 수정 요청 → 대화 재개
@@ -437,8 +434,7 @@ def generate_conversational_response(
                 
                 return {
                     "message": f"{response_message}\n\n수정이 완료되면 '저장' 이라고 말씀해주세요.",
-                    "updated_metadata": updated_metadata,
-                    "status": "conversing"  # 대화 재개
+                    "updated_metadata": updated_metadata
                 }
         
         # 거절 + 저장 의사 확인 (예: "아니요, 이대로 저장할게요")
@@ -446,8 +442,7 @@ def generate_conversational_response(
             final_summary = format_metadata_summary(metadata)
             return {
                 "message": f"✅ **수정사항이 저장되었습니다!**\n\n{final_summary}",
-                "updated_metadata": metadata,
-                "status": "completed"
+                "updated_metadata": metadata
             }
         
         result = extract_and_update_metadata_with_llm(
@@ -464,15 +459,13 @@ def generate_conversational_response(
         if needs_more_info and not is_confirmation(user_message):
             return {
                 "message": response_message,
-                "updated_metadata": updated_metadata,
-                "status": "conversing"
+                "updated_metadata": updated_metadata
             }
         else:
             # 정보가 충분함 → 대화 계속 (사용자가 명시적으로 끝낼 때까지)
             return {
                 "message": response_message,
-                "updated_metadata": updated_metadata,
-                "status": "conversing"
+                "updated_metadata": updated_metadata
             }
     else:
         # 첫 메시지
@@ -483,8 +476,7 @@ def generate_conversational_response(
             
             return {
                 "message": f"안녕하세요! '{project_title}'에 대해 정리하고 계시네요.\n\n어떤 사항 위주로 수정하고 싶으신가요?\n\n예를 들어 '성과를 좀 더 구체적으로 적고 싶어요' 혹은 '내 역할을 새로 정리하고 싶어요'처럼 말씀해주시면 도와드릴게요.",
-                "updated_metadata": metadata,
-                "status": "conversing"
+                "updated_metadata": metadata
             }
         
         # 데이터가 없는 경우 - 빈 필드에 대해 질문
@@ -494,8 +486,7 @@ def generate_conversational_response(
             final_summary = format_metadata_summary(metadata)
             return {
                 "message": f"좋아요! 지금까지 정리한 내용을 보면:\n\n{final_summary}\n\n이렇게 업데이트 해도 될까요?",
-                "updated_metadata": metadata,
-                "status": "preview"
+                "updated_metadata": metadata
             }
         else:
             # 첫 번째 빈 필드에 대해 구체적으로 질문
@@ -515,8 +506,7 @@ def generate_conversational_response(
             
             return {
                 "message": questions.get(target_field, f"{field_name}에 대해 알려주세요."),
-                "updated_metadata": metadata,
-                "status": "conversing"
+                "updated_metadata": metadata
             }
 
 def process_chatbot_message(
@@ -558,9 +548,11 @@ def process_project_refine_chatbot(
     Returns:
         {
             "message": "AI 응답 메시지",
-            "project": {업데이트된 프로젝트 메타데이터},
-            "status": "conversing" | "completed" | "preview"
+            "project": {업데이트된 프로젝트 메타데이터}
         }
+        
+        Note: 완료 시에만 "project" 필드가 포함됩니다.
+        "프로젝트 내용을 보강했어! 다음에 보자!" 메시지가 포함되면 완료로 판단합니다.
     """
     if conversation_history is None:
         conversation_history = []
@@ -576,15 +568,13 @@ def process_project_refine_chatbot(
         if has_existing_data(metadata):
             return {
                 "message": f"안녕하세요! '{project_title}'에 대해 정리하고 계시네요.\n\n어떤 사항 위주로 수정하고 싶으신가요?\n\n예를 들어 '성과를 좀 더 구체적으로 적고 싶어요' 혹은 '내 역할을 새로 정리하고 싶어요'처럼 말씀해주시면 도와드릴게요.",
-                "project": project,
-                "status": "conversing"
+                "project": project
             }
         else:
             # 데이터가 없는 경우
             return {
                 "message": "좋아요! 우선 이 프로젝트에서 가장 핵심이 되는 기능이 무엇인가요?",
-                "project": project,
-                "status": "conversing"
+                "project": project
             }
     
     # 미리보기 요청 확인
@@ -592,8 +582,7 @@ def process_project_refine_chatbot(
         final_summary = format_metadata_summary(metadata)
         return {
             "message": f"📋 **수정된 내용 미리보기**\n\n{final_summary}\n\n더 수정할 부분이 있을까요, 아니면 저장할까요?",
-            "project": updated_project if 'updated_project' in locals() else project,
-            "status": "preview"
+            "project": updated_project if 'updated_project' in locals() else project
         }
     
     # 완료/저장/종료 요청 확인 → 최종 확인 단계로
@@ -601,8 +590,7 @@ def process_project_refine_chatbot(
         final_summary = format_metadata_summary(metadata)
         return {
             "message": f"📋 **최종으로 올라갈 메타데이터**\n\n{final_summary}\n\n이렇게 수정하는게 맞나요?\n\n맞으면 '네'라고 말씀해주시고, 수정할 부분이 있으면 알려주세요!",
-            "project": updated_project if 'updated_project' in locals() else project,
-            "status": "preview"
+            "project": updated_project if 'updated_project' in locals() else project
         }
     
     # 이전 AI 메시지 가져오기
@@ -630,8 +618,7 @@ def process_project_refine_chatbot(
             final_summary = format_metadata_summary(updated_metadata)
             return {
                 "message": f"✅ **수정사항이 저장되었습니다!**\n\n{final_summary}\n\n프로젝트 내용을 보강했어! 다음에 보자!",
-                "project": updated_project,
-                "status": "completed"
+                "project": updated_project
             }
         
         # preview 상태에서 수정 요청 → 대화 재개
@@ -648,8 +635,7 @@ def process_project_refine_chatbot(
             
             return {
                 "message": f"{response_message}\n\n수정이 완료되면 '저장' 또는 '끝낼래'라고 말씀해주세요.",
-                "project": updated_project,
-                "status": "conversing"
+                "project": updated_project
             }
     
     # 사용자 메시지 처리 - LLM으로 메타데이터 추출 및 업데이트
@@ -668,15 +654,13 @@ def process_project_refine_chatbot(
     if needs_more_info:
         return {
             "message": response_message,
-            "project": updated_project,
-            "status": "conversing"
+            "project": updated_project
         }
     
     # 대화 지속
     return {
         "message": response_message,
-        "project": updated_project,
-        "status": "conversing"
+        "project": updated_project
     }
 
 def main():
