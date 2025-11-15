@@ -162,16 +162,16 @@ const buildDisplayProjects = (projects: Project[], selectedProjectId: number | s
   if (!projects.length) return [];
 
   if (!selectedProjectId) {
-    return projects.slice(-MAX_RECENT_PROJECTS).reverse();
+    return projects.slice(0, MAX_RECENT_PROJECTS);
   }
 
   const selected = projects.find((project) => project.id === selectedProjectId);
 
   if (!selected) {
-    return projects.slice(-MAX_RECENT_PROJECTS).reverse();
+    return projects.slice(0, MAX_RECENT_PROJECTS);
   }
 
-  const otherProjects = projects.filter((project) => project.id !== selectedProjectId).slice(-4).reverse();
+  const otherProjects = projects.filter((project) => project.id !== selectedProjectId).slice(0, 4);
   return [selected, ...otherProjects];
 };
 
