@@ -6,6 +6,7 @@ from typing import List, Optional, Dict, Any
 import json
 import uuid
 import os
+import io
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -282,14 +283,71 @@ async def projects_assistant(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"서버 오류: {str(e)}")
 
+def parse_multipart_manually(body: bytes, boundary: str) -> tuple:
+    """
+    multipart/form-data를 수동으로 파싱
+    Supabase Edge Function Proxy를 통한 요청 처리
+    """
+    file_data = None
+    url_data = None
+    text_data = None
+    
+    # boundary로 분리
+    boundary_bytes = f"--{boundary}".encode()
+    parts = body.split(boundary_bytes)
+    
+    for part in parts:
+        if not part or part == b'--\r\n' or part == b'--':
+            continue
+        
+        # 헤더와 본문 분리
+        try:
+            header_end = part.find(b'\r\n\r\n')
+            if header_end == -1:
+                continue
+            
+            headers = part[:header_end].decode('utf-8', errors='ignore')
+            content = part[header_end + 4:]
+            
+            # 마지막 \r\n 제거
+            if content.endswith(b'\r\n'):
+                content = content[:-2]
+            
+            # Content-Disposition 파싱
+            if 'Content-Disposition' in headers:
+                # name 추출
+                if 'name="file"' in headers:
+                    filename = None
+                    if 'filename=' in headers:
+                        # filename 추출
+                        filename_start = headers.find('filename="') + 10
+                        filename_end = headers.find('"', filename_start)
+                        filename = headers[filename_start:filename_end]
+                    
+                    file_data = {
+                        'content': content,
+                        'filename': filename
+                    }
+                
+                elif 'name="url"' in headers:
+                    url_data = content.decode('utf-8', errors='ignore').strip()
+                
+                elif 'name="text"' in headers:
+                    text_data = content.decode('utf-8', errors='ignore').strip()
+        
+        except Exception as e:
+            print(f"파트 파싱 오류: {e}")
+            continue
+    
+    return file_data, url_data, text_data
+
 @app.post("/ai/projects/analyze")
-async def analyze_project(
-    file: Optional[UploadFile] = File(None),
-    url: Optional[str] = Form(None),
-    text: Optional[str] = Form(None)
-):
+async def analyze_project(request: Request):
     """
     프로젝트 파일/URL/텍스트를 분석하여 메타데이터를 추출합니다.
+    
+    Supabase Edge Function Proxy를 통한 multipart 요청 지원
+    python-multipart 파서 우회하여 직접 파싱
     
     FormData로 다음 중 하나 이상을 받습니다:
     - file: 업로드된 파일
@@ -311,12 +369,93 @@ async def analyze_project(
         }
     """
     try:
-        # FormData 분석
-        metadata = analyze_project_from_formdata(
-            file=file,
-            url=url,
-            text=text
-        )
+        # Content-Type 헤더 확인
+        content_type = request.headers.get("content-type", "")
+        
+        # multipart/form-data인 경우
+        if "multipart/form-data" in content_type:
+            # 원시 body를 직접 읽기
+            body = await request.body()
+            
+            # boundary 추출
+            boundary = None
+            if "boundary=" in content_type:
+                boundary = content_type.split("boundary=")[1].strip()
+            
+            if not boundary:
+                raise HTTPException(status_code=400, detail="boundary not found")
+            
+            # multipart 데이터를 수동으로 파싱
+            file_data, url_data, text_data = parse_multipart_manually(body, boundary)
+            
+            # analyze_project_from_formdata 호출
+            if file_data:
+                # bytes를 파일처럼 처리
+                file_like = io.BytesIO(file_data['content'])
+                file_like.name = file_data.get('filename', 'uploaded_file')
+                file_like.filename = file_data.get('filename', 'uploaded_file')
+                file_like.file = file_like  # shutil.copyfileobj를 위해 자기 자신을 file 속성으로 설정
+                metadata = analyze_project_from_formdata(
+                    file=file_like,
+                    url=None,
+                    text=None
+                )
+            elif url_data:
+                metadata = analyze_project_from_formdata(
+                    file=None,
+                    url=url_data,
+                    text=None
+                )
+            elif text_data:
+                metadata = analyze_project_from_formdata(
+                    file=None,
+                    url=None,
+                    text=text_data
+                )
+            else:
+                raise HTTPException(status_code=400, detail="No file, url, or text provided")
+        
+        # JSON인 경우
+        elif "application/json" in content_type:
+            data = await request.json()
+            metadata = analyze_project_from_formdata(
+                file=None,
+                url=data.get("url"),
+                text=data.get("text")
+            )
+        
+        # 일반 form-data인 경우 (기존 방식 - Direct 호출)
+        else:
+            try:
+                form = await request.form()
+                file = form.get("file")
+                url = form.get("url")
+                text = form.get("text")
+                metadata = analyze_project_from_formdata(file, url, text)
+            except Exception as form_error:
+                print(f"Form 파싱 실패, multipart 수동 파싱 시도: {form_error}")
+                # Form 파싱 실패 시 multipart 수동 파싱 시도
+                body = await request.body()
+                boundary = None
+                if "boundary=" in content_type:
+                    boundary = content_type.split("boundary=")[1].strip()
+                
+                if boundary:
+                    file_data, url_data, text_data = parse_multipart_manually(body, boundary)
+                    if file_data:
+                        file_like = io.BytesIO(file_data['content'])
+                        file_like.name = file_data.get('filename', 'uploaded_file')
+                        file_like.filename = file_data.get('filename', 'uploaded_file')
+                        file_like.file = file_like  # shutil.copyfileobj를 위해 자기 자신을 file 속성으로 설정
+                        metadata = analyze_project_from_formdata(file=file_like, url=None, text=None)
+                    elif url_data:
+                        metadata = analyze_project_from_formdata(file=None, url=url_data, text=None)
+                    elif text_data:
+                        metadata = analyze_project_from_formdata(file=None, url=None, text=text_data)
+                    else:
+                        raise HTTPException(status_code=400, detail="No file, url, or text provided")
+                else:
+                    raise form_error
         
         # 응답 형식 맞추기 (status 제거하고 project만 반환)
         if "project" in metadata:
@@ -336,6 +475,8 @@ async def analyze_project(
                 }
             }
             
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"프로젝트 분석 오류: {str(e)}")
         import traceback
