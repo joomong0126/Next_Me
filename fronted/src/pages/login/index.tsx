@@ -6,13 +6,15 @@ import { Input } from '@/shared/ui/shadcn/input';
 import { Label } from '@/shared/ui/shadcn/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/shadcn/card';
 import { api } from '@/shared/api';
+import { supabaseClient } from '@/shared/api/supabaseClient';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  const [email, setEmail] = useState('demo@demo.com');
+  // 개발 편의를 위한 기본값
+  const [email, setEmail] = useState('dev@dev.com');
   const [password, setPassword] = useState('1234');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,12 +72,26 @@ export default function LoginPage() {
     setError(null);
     setIsLoading(true);
     try {
-      const placeholderEmail = email.trim() || 'google.user@example.com';
-      await api.auth.loginWithGoogle({ email: placeholderEmail, name: 'Google User' });
-      await handleAuthSuccess();
+      // 구글 로그인 실행 - OAuth 리다이렉트 방식
+      const { data, error: oauthError } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+
+      // OAuth는 리다이렉트 방식이므로 여기서는 페이지가 이동됩니다
+      // 실제 세션 처리는 /auth/callback에서 이루어집니다
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google 로그인에 실패했습니다.');
-    } finally {
       setIsLoading(false);
     }
   };
@@ -108,7 +124,6 @@ export default function LoginPage() {
                 required
                 autoComplete="email"
               />
-              <p className="text-xs text-gray-500">체험 계정: demo@demo.com / 1234</p>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">

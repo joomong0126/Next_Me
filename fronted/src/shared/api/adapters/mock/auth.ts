@@ -1,5 +1,6 @@
 import type {
   AuthAPI,
+  ChangePasswordInput,
   GoogleLoginInput,
   LoginInput,
   LoginOutput,
@@ -51,5 +52,20 @@ export const auth: AuthAPI = {
   },
   async me(): Promise<MeOutput> {
     return requestJSON<MeOutput>('/profiles/me');
+  },
+  async resendEmailConfirmation(_email: string): Promise<void> {
+    // Mock에서는 즉시 성공
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  },
+  async changePassword({ currentPassword, newPassword }: ChangePasswordInput): Promise<void> {
+    // Mock에서는 현재 비밀번호 확인 없이 즉시 성공
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    console.info('[mock/auth] Password changed successfully');
+  },
+  async deleteAccount(): Promise<void> {
+    // Mock에서는 즉시 계정 삭제 및 로그아웃
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    clearAuthToken();
+    console.info('[mock/auth] Account deleted successfully');
   },
 };

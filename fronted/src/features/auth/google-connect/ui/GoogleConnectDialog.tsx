@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/shadcn/dialog';
 import { Button } from '@/shared/ui/shadcn/button';
+import { supabaseClient } from '@/shared/api/supabaseClient';
 
 export interface GoogleConnectResult {
   email: string;
@@ -16,14 +17,37 @@ interface GoogleConnectDialogProps {
 export function GoogleConnectDialog({ open, onCancel, onComplete }: GoogleConnectDialogProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (isConnecting) return;
     setIsConnecting(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      // 구글 로그인 실행
+      const { data, error: oauthError } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+
+      if (oauthError) {
+        throw oauthError;
+      }
+
+      // OAuth는 리다이렉트 방식이므로 여기서는 대기 상태만 표시
+      // 실제 결과는 콜백 URL에서 처리됩니다
+      setIsConnecting(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google 로그인에 실패했습니다.');
       setIsConnecting(false);
-      setIsConnected(true);
-    }, 800);
+    }
   };
 
   const handleContinue = () => {
@@ -52,10 +76,17 @@ export function GoogleConnectDialog({ open, onCancel, onComplete }: GoogleConnec
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-6">
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm text-red-600">
+              {error}
+            </div>
+          )}
           <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-center text-sm text-gray-600">
             {isConnected
               ? 'Google 계정이 연결되었습니다. 다음 단계로 이동할 수 있어요.'
-              : '연결하기 버튼을 눌러 Google 계정을 인증해 주세요.'}
+              : isConnecting
+                ? 'Google 로그인 페이지로 이동 중...'
+                : '연결하기 버튼을 눌러 Google 계정을 인증해 주세요.'}
           </div>
 
           <div className="flex flex-col gap-3">

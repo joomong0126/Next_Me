@@ -56,5 +56,37 @@
     server: {
       port: 3000,
       open: true,
+      proxy: {
+        '/api/supabase-functions': {
+          target: 'https://sqxojkaavbfmwhcdlwqt.supabase.co',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path.replace(/^\/api\/supabase-functions/, '/functions/v1'),
+          configure: (proxy, _options) => {
+            proxy.on('error', (err, _req, _res) => {
+              console.error('[Vite Proxy] 에러:', err);
+            });
+            proxy.on('proxyReq', (proxyReq, req, _res) => {
+              console.log('[Vite Proxy] 요청 전송:', {
+                method: req.method,
+                url: req.url,
+                target: proxyReq.path,
+                headers: Object.keys(req.headers),
+              });
+              // Authorization 헤더가 있으면 로그 (실제 값은 보안상 표시 안함)
+              if (req.headers.authorization) {
+                console.log('[Vite Proxy] Authorization 헤더 전달됨');
+              }
+            });
+            proxy.on('proxyRes', (proxyRes, req, _res) => {
+              console.log('[Vite Proxy] 응답 받음:', {
+                status: proxyRes.statusCode,
+                url: req.url,
+                headers: Object.keys(proxyRes.headers),
+              });
+            });
+          },
+        },
+      },
     },
   });

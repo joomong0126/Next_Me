@@ -34,6 +34,11 @@ export type SignupOutput = LoginOutput;
 
 export type MeOutput = AuthUser;
 
+export type ChangePasswordInput = {
+  currentPassword: string;
+  newPassword: string;
+};
+
 export type ProjectRecordType = 'file' | 'link' | 'project';
 
 export type ProjectRecord = {
@@ -59,6 +64,9 @@ export interface AuthAPI {
   signup(input: SignupInput): Promise<SignupOutput>;
   logout(): Promise<void>;
   me(): Promise<MeOutput>;
+  resendEmailConfirmation(email: string): Promise<void>;
+  changePassword(input: ChangePasswordInput): Promise<void>;
+  deleteAccount(): Promise<void>;
 }
 
 export interface ProjectsAPI {

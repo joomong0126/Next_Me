@@ -79,10 +79,17 @@ export function TermsConsentDialog({ open, onConfirm, onCancel }: TermsConsentDi
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-6">
-          <button
-            type="button"
+          <div
+            role="button"
+            tabIndex={0}
             onClick={handleToggleAll}
-            className={`w-full flex items-center justify-between rounded-lg border px-4 py-3 text-left ${
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleToggleAll();
+              }
+            }}
+            className={`w-full flex items-center justify-between rounded-lg border px-4 py-3 text-left cursor-pointer focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 ${
               allChecked
                 ? 'border-gray-900 bg-gray-900 text-white'
                 : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
@@ -98,7 +105,7 @@ export function TermsConsentDialog({ open, onConfirm, onCancel }: TermsConsentDi
                 모두 동의합니다
               </span>
             </div>
-          </button>
+          </div>
 
           <div className="space-y-2">
             {TERMS.map((term) => {

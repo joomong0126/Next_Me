@@ -1,5 +1,5 @@
 import { useOutletContext } from 'react-router-dom';
-import { ProjectsBoard } from '@/features/projects';
+import { ProjectsBoard } from '@/features/projects/board';
 import type { AppOutletContext } from '../types';
 
 export default function ProjectsPage() {

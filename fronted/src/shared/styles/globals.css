@@ -192,3 +192,39 @@ html {
   font-size: var(--font-size);
   font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
+
+/* 투명한 스크롤바 스타일 */
+.scrollbar-transparent {
+  scrollbar-width: thin !important;
+  scrollbar-color: transparent transparent !important;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-transparent::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.scrollbar-transparent::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.scrollbar-transparent::-webkit-scrollbar-thumb {
+  background: transparent !important;
+  border-radius: 4px;
+}
+
+.scrollbar-transparent::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.3) !important;
+}
+
+.dark .scrollbar-transparent::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 85, 99, 0.3) !important;
+}
+
+/* EditProjectDialog label 스타일 강제 적용 */
+.edit-project-dialog label.text-primary,
+.edit-project-dialog label[class*="text-primary"] {
+  color: rgb(var(--primary)) !important;
+  font-weight: 600 !important;
+  font-size: 1rem !important;
+}

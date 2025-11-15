@@ -1,2 +1,2 @@
-export * from './ui/ProjectsBoard';
-
+export * from './board';
+export * from './upload';

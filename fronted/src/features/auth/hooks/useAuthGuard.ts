@@ -1,18 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchCurrentUser } from '@/entities/user/queries';
-import { UnauthorizedError } from '@/shared/api/errors';
-import { readToken } from '@/shared/api/tokenStorage';
+import { useUser } from './useUser';
 
+/**
+ * @deprecated useUser를 사용하세요. 이 훅은 하위 호환성을 위해 유지됩니다.
+ */
 export function useAuthGuard() {
-  return useQuery({
-    queryKey: ['auth', 'me'],
-    queryFn: async () => {
-      if (!readToken()) {
-        throw new UnauthorizedError('Missing token');
-      }
-      return fetchCurrentUser();
-    },
-    retry: false,
-    staleTime: 5 * 60 * 1000,
-  });
+  return useUser();
 }

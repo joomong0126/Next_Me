@@ -11,12 +11,22 @@ const isBrowser = typeof window !== 'undefined';
 const memoryStore: Record<string, TableRow[]> = {};
 
 const resolveEnv = (processKey: string, viteKey: string) => {
+  // Node.js 환경 (서버 사이드)
   const fromProcess = (globalThis as any)?.process?.env?.[processKey];
   if (fromProcess) {
+    console.log(`[resolveEnv] Found ${processKey} from process.env:`, fromProcess.substring(0, 20) + '...');
     return fromProcess;
   }
 
-  return (import.meta as any)?.env?.[viteKey];
+  // Vite 환경 (클라이언트 사이드)
+  const fromVite = (import.meta as any)?.env?.[viteKey];
+  if (fromVite) {
+    console.log(`[resolveEnv] Found ${viteKey} from import.meta.env:`, fromVite.substring(0, 20) + '...');
+    return fromVite;
+  }
+
+  console.warn(`[resolveEnv] ⚠️ Not found: ${processKey} or ${viteKey}`);
+  return undefined;
 };
 
 const storageKey = (table: string) => `mock-supabase::${table}`;
@@ -272,6 +282,15 @@ const createMockSupabaseClient = () => ({
     async signInWithPassword() {
       throw new Error('Supabase auth is not available in mock mode.');
     },
+    async signUp() {
+      throw new Error('Supabase auth is not available in mock mode.');
+    },
+    async signInWithOAuth() {
+      throw new Error('Supabase auth is not available in mock mode.');
+    },
+    async updateUser() {
+      throw new Error('Supabase auth is not available in mock mode.');
+    },
     async signOut() {
       return { error: null };
     },
@@ -281,22 +300,64 @@ const createMockSupabaseClient = () => ({
   },
 });
 
-const supabaseUrl = resolveEnv('NEXT_PUBLIC_SUPABASE_URL', 'VITE_SUPABASE_URL');
-const supabaseAnonKey = resolveEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
-const useMockSupabase = (import.meta as any)?.env?.VITE_USE_MOCK === 'true';
+// Vite에서는 import.meta.env에서 직접 접근해야 함
+// 타입스크립트를 위해 import.meta.env로 직접 접근
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+const viteUseMock = import.meta.env.VITE_USE_MOCK as string | undefined;
+const useMockSupabase = viteUseMock === 'true';
+const explicitDisableMock = viteUseMock === 'false';
+
+// 디버깅을 위한 환경 변수 로그
+const allEnvKeys = Object.keys((import.meta as any)?.env || {}).filter(key => key.startsWith('VITE_'));
+console.log('[supabase] Environment check:', {
+  VITE_USE_MOCK: viteUseMock,
+  useMockSupabase,
+  explicitDisableMock,
+  hasSupabaseUrl: !!supabaseUrl,
+  hasSupabaseAnonKey: !!supabaseAnonKey,
+  supabaseUrl: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'missing',
+  supabaseAnonKey: supabaseAnonKey ? `${supabaseAnonKey.substring(0, 20)}...` : 'missing',
+  // 전체 VITE_ 환경 변수 확인
+  allEnvKeys,
+  // 실제 값 확인 (보안상 일부만)
+  envValues: allEnvKeys.reduce((acc, key) => {
+    const value = (import.meta as any)?.env?.[key];
+    acc[key] = typeof value === 'string' ? `${value.substring(0, 30)}...` : value;
+    return acc;
+  }, {} as Record<string, any>),
+});
 
 let client: ReturnType<typeof createClient> | ReturnType<typeof createMockSupabaseClient>;
 let mockClientActive = false;
 
+// VITE_USE_MOCK이 명시적으로 false인데 환경 변수가 없으면 에러
+if (explicitDisableMock && (!supabaseUrl || !supabaseAnonKey)) {
+  const missing = [];
+  if (!supabaseUrl) missing.push('VITE_SUPABASE_URL');
+  if (!supabaseAnonKey) missing.push('VITE_SUPABASE_ANON_KEY');
+  console.error(
+    `[supabase] ❌ ERROR: VITE_USE_MOCK is set to 'false' but required environment variables are missing: ${missing.join(', ')}`,
+  );
+  console.error(
+    '[supabase] Please create a .env file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, or set VITE_USE_MOCK=true to use mock mode.',
+  );
+  throw new Error(
+    `Supabase environment variables missing: ${missing.join(', ')}. Set VITE_USE_MOCK=true to use mock mode, or provide required Supabase credentials.`,
+  );
+}
+
 if (!supabaseUrl || !supabaseAnonKey || useMockSupabase) {
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.info('[supabase] Missing environment variables – falling back to mock client.');
+    console.warn('[supabase] Missing environment variables – falling back to mock client.');
+    console.warn('[supabase] To use real Supabase, set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env file');
   } else if (useMockSupabase) {
     console.info('[supabase] VITE_USE_MOCK enabled – using mock Supabase client.');
   }
   client = createMockSupabaseClient();
   mockClientActive = true;
 } else {
+  console.info('[supabase] Using real Supabase client.');
   client = createClient(supabaseUrl, supabaseAnonKey);
 }
 

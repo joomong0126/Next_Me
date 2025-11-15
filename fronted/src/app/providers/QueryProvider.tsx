@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode, useEffect, useState } from 'react';
-import { fetchCurrentUser } from '@/entities/user/queries';
+import { fetchCurrentUser } from '@/features/auth/api/user';
 import { readToken } from '@/shared/api/tokenStorage';
 import { subscribeUnauthorizedEvent } from '@/shared/api/authEvents';
 

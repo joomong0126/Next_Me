@@ -107,22 +107,35 @@ export function SignupDetailsForm({
 
   const credentialsValid = useMemo(() => {
     if (isGoogleSignup) return true;
-    return (
-      email.trim() !== '' &&
-      password.trim().length >= 6 &&
-      confirmPassword.trim() !== '' &&
-      password === confirmPassword
-    );
+    const emailValid = email.trim() !== '';
+    const passwordValid = password.trim().length >= 6;
+    const confirmPasswordFilled = confirmPassword.trim() !== '';
+    const passwordsMatch = confirmPasswordFilled && password === confirmPassword;
+    return emailValid && passwordValid && confirmPasswordFilled && passwordsMatch;
   }, [isGoogleSignup, email, password, confirmPassword]);
 
   const canProceed = useMemo(() => {
+    const checks = {
+      credentialsValid,
+      nameValid: name.trim() !== '',
+      phoneValid: phone.trim() !== '',
+      statusValid: status !== null,
+      goalsValid: goals.length > 0,
+      phoneVerified: isPhoneVerified,
+    };
+    
+    // 디버깅을 위한 로그 (개발 환경에서만)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Form validation checks:', checks);
+    }
+    
     return (
-      credentialsValid &&
-      name.trim() !== '' &&
-      phone.trim() !== '' &&
-      status !== null &&
-      goals.length > 0 &&
-      isPhoneVerified
+      checks.credentialsValid &&
+      checks.nameValid &&
+      checks.phoneValid &&
+      checks.statusValid &&
+      checks.goalsValid &&
+      checks.phoneVerified
     );
   }, [credentialsValid, name, phone, status, goals, isPhoneVerified]);
 
@@ -329,6 +342,32 @@ export function SignupDetailsForm({
           >
             {isSubmitting ? '저장 중...' : '다음'}
           </Button>
+          {!canProceed && !isSubmitting && (
+            <div className="text-xs text-amber-600 text-center space-y-1">
+              {!credentialsValid && !isGoogleSignup && (
+                <p>이메일과 비밀번호(6자 이상)를 올바르게 입력해주세요.</p>
+              )}
+              {credentialsValid && name.trim() === '' && <p>이름을 입력해주세요.</p>}
+              {credentialsValid && name.trim() !== '' && phone.trim() === '' && (
+                <p>전화번호를 입력해주세요.</p>
+              )}
+              {credentialsValid &&
+                name.trim() !== '' &&
+                phone.trim() !== '' &&
+                !isPhoneVerified && <p>전화번호 인증을 완료해주세요.</p>}
+              {credentialsValid &&
+                name.trim() !== '' &&
+                phone.trim() !== '' &&
+                isPhoneVerified &&
+                status === null && <p>현재 상태를 선택해주세요.</p>}
+              {credentialsValid &&
+                name.trim() !== '' &&
+                phone.trim() !== '' &&
+                isPhoneVerified &&
+                status !== null &&
+                goals.length === 0 && <p>목표 직무를 최소 1개 이상 선택해주세요.</p>}
+            </div>
+          )}
           {submitError ? <p className="text-sm text-red-500 text-center">{submitError}</p> : null}
           <p className="text-xs text-gray-500 text-center">입력하신 정보는 온보딩 과정에서 활용됩니다.</p>
         </div>

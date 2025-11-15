@@ -1,6 +1,6 @@
 import { useOutletContext } from 'react-router-dom';
 
-import { AICareerGenerator } from '@/features/career-generator';
+import { AICareerGenerator } from '@/features/ai/career';
 
 import type { AppOutletContext } from '../types';
 

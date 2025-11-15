@@ -45,6 +45,8 @@ import { themes } from '@/shared/lib/themes';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import type { AppOutletContext } from '../types';
+import { api } from '@/shared/api';
+import { useNavigate } from 'react-router-dom';
 
 interface WorkExperience {
   id: number;
@@ -128,6 +130,17 @@ export default function SettingsPage() {
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
   const [isProjectImportDialogOpen, setIsProjectImportDialogOpen] = useState(false);
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [isDeleteAccountDialogOpen, setIsDeleteAccountDialogOpen] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const navigate = useNavigate();
   const [importTargetSection, setImportTargetSection] = useState<'experience' | 'activity' | 'competition' | 'award' | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const [editMode, setEditMode] = useState<EditMode | null>(null);
@@ -684,6 +697,76 @@ export default function SettingsPage() {
       awards.length > 0 ||
       certificates.length > 0
     );
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+
+    // 유효성 검사
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError('모든 필드를 입력해주세요.');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('새 비밀번호와 확인 비밀번호가 일치하지 않습니다.');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('비밀번호는 최소 6자 이상이어야 합니다.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await api.auth.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      
+      // 성공 메시지
+      alert('비밀번호가 성공적으로 변경되었습니다.');
+      setIsPasswordDialogOpen(false);
+      setPasswordForm({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      });
+      setPasswordError(null);
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : '비밀번호 변경에 실패했습니다.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirm('정말 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      await api.auth.deleteAccount();
+      
+      // 계정 삭제 성공 - 로그아웃 처리
+      alert('계정이 삭제되었습니다.');
+      await handleLogout();
+      navigate('/login');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '계정 삭제에 실패했습니다.';
+      alert(errorMessage);
+      
+      // 계정 삭제가 요청되었지만 실제 삭제는 나중에 처리되는 경우
+      if (errorMessage.includes('로그아웃')) {
+        await handleLogout();
+        navigate('/login');
+      }
+    } finally {
+      setIsDeletingAccount(false);
+      setIsDeleteAccountDialogOpen(false);
+    }
   };
 
   return (
@@ -1396,7 +1479,11 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full rounded-xl justify-start">
+              <Button 
+                variant="outline" 
+                className="w-full rounded-xl justify-start"
+                onClick={() => setIsPasswordDialogOpen(true)}
+              >
                 비밀번호 변경
               </Button>
               <Button variant="outline" className="w-full rounded-xl justify-start">
@@ -1429,6 +1516,7 @@ export default function SettingsPage() {
               <Button
                 variant="outline"
                 className="w-full rounded-xl justify-start border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/50"
+                onClick={() => setIsDeleteAccountDialogOpen(true)}
               >
                 계정 삭제
               </Button>
@@ -2307,6 +2395,141 @@ export default function SettingsPage() {
             >
               <Check className="w-4 h-4 mr-2" />
               완료
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 비밀번호 변경 다이얼로그 */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>비밀번호 변경</DialogTitle>
+            <DialogDescription>
+              현재 비밀번호를 입력하고 새 비밀번호를 설정해주세요
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="current-password">현재 비밀번호</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={passwordForm.currentPassword}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, currentPassword: e.target.value })
+                }
+                placeholder="현재 비밀번호를 입력하세요"
+                className="rounded-lg"
+                disabled={isChangingPassword}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-password">새 비밀번호</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={passwordForm.newPassword}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, newPassword: e.target.value })
+                }
+                placeholder="새 비밀번호를 입력하세요 (최소 6자)"
+                className="rounded-lg"
+                disabled={isChangingPassword}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">비밀번호 확인</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={passwordForm.confirmPassword}
+                onChange={(e) =>
+                  setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })
+                }
+                placeholder="새 비밀번호를 다시 입력하세요"
+                className="rounded-lg"
+                disabled={isChangingPassword}
+              />
+            </div>
+
+            {passwordError && (
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPasswordDialogOpen(false);
+                setPasswordForm({
+                  currentPassword: '',
+                  newPassword: '',
+                  confirmPassword: '',
+                });
+                setPasswordError(null);
+              }}
+              className="rounded-xl"
+              disabled={isChangingPassword}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleChangePassword}
+              className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl"
+              disabled={isChangingPassword}
+            >
+              {isChangingPassword ? '변경 중...' : '변경하기'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 회원 탈퇴 확인 다이얼로그 */}
+      <Dialog open={isDeleteAccountDialogOpen} onOpenChange={setIsDeleteAccountDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-red-600 dark:text-red-400">계정 삭제</DialogTitle>
+            <DialogDescription>
+              계정을 삭제하면 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.
+              정말 계정을 삭제하시겠습니까?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-600 dark:text-red-400 font-medium mb-2">
+                주의사항:
+              </p>
+              <ul className="text-sm text-red-600 dark:text-red-400 space-y-1 list-disc list-inside">
+                <li>모든 프로젝트 및 커리어 데이터가 삭제됩니다</li>
+                <li>이 작업은 되돌릴 수 없습니다</li>
+                <li>다시 가입하지 않는 한 데이터를 복구할 수 없습니다</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteAccountDialogOpen(false)}
+              className="rounded-xl"
+              disabled={isDeletingAccount}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleDeleteAccount}
+              className="bg-red-600 hover:bg-red-700 text-white rounded-xl"
+              disabled={isDeletingAccount}
+            >
+              {isDeletingAccount ? '삭제 중...' : '계정 삭제'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,12 +6,12 @@ import { Toaster } from '@/shared/ui/shadcn/sonner';
 import { AppPage } from '@/shared/types/app';
 import Sidebar from '@/widgets/Sidebar/Sidebar';
 import Header from '@/widgets/Header/Header';
-import { UploadDialog } from '@/features/project-upload';
+import { UploadDialog } from '@/features/projects/upload';
 import WelcomeDialog from './components/WelcomeDialog';
 import type { Project } from '@/entities/project';
 import type { AppOutletContext } from './types';
 import { api } from '@/shared/api';
-import { fetchProjects } from '@/entities/project/api';
+import { useProjects } from '@/features/projects/hooks/useProjects';
 import { toast } from 'sonner';
 
 const breadcrumbMap: Record<AppPage, string> = {
@@ -38,6 +38,8 @@ export default function AppLayout() {
   const location = useLocation();
   const queryClient = useQueryClient();
 
+  const { data: projectsData = [], isLoading: isLoadingProjects } = useProjects();
+  // React Query의 데이터를 로컬 상태로 관리 (outletContext에서 setProjects가 필요하므로)
   const [projects, setProjects] = useState<Project[]>([]);
   const [darkMode, setDarkMode] = useState(false);
   const [themeName, setThemeName] = useState<string>('black');
@@ -80,29 +82,11 @@ export default function AppLayout() {
     }
   }, []);
 
+  // React Query에서 가져온 프로젝트 데이터를 로컬 상태와 동기화
+  // (outletContext에서 setProjects가 사용되므로 상태 유지 필요)
   useEffect(() => {
-    let cancelled = false;
-
-    const loadProjects = async () => {
-      try {
-        const loadedProjects = await fetchProjects();
-        if (!cancelled) {
-          setProjects(loadedProjects);
-        }
-      } catch (error) {
-        console.error('Failed to fetch projects', error);
-        if (!cancelled) {
-          toast.error('프로젝트를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-        }
-      }
-    };
-
-    void loadProjects();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setProjects(projectsData);
+  }, [projectsData]);
 
   useEffect(() => {
     if (darkMode) {
