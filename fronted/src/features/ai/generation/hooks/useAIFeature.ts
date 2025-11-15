@@ -15,7 +15,7 @@ import {
 
 interface UseAIFeatureParams {
   projects: Project[];
-  selectedProjectId: number | null;
+  selectedProjectId: number | string | null;
   userRole: string;
   setMessages: Dispatch<SetStateAction<AssistantMessage[]>>;
   setIsGenerating: Dispatch<SetStateAction<boolean>>;
@@ -24,10 +24,10 @@ interface UseAIFeatureParams {
 interface UseAIFeatureResult {
   selectedFeature: string;
   projectSelectDialogOpen: boolean;
-  selectedProjectsForFeature: number[];
+  selectedProjectsForFeature: (number | string)[];
   maxSelectable: number;
   openFeature: (feature: string) => void;
-  toggleProjectSelection: (projectId: number) => void;
+  toggleProjectSelection: (projectId: number | string) => void;
   confirmFeature: () => void;
   closeProjectSelectDialog: () => void;
 }
@@ -41,7 +41,7 @@ export function useAIFeature({
 }: UseAIFeatureParams): UseAIFeatureResult {
   const [selectedFeature, setSelectedFeature] = useState<string>('');
   const [projectSelectDialogOpen, setProjectSelectDialogOpen] = useState(false);
-  const [selectedProjectsForFeature, setSelectedProjectsForFeature] = useState<number[]>([]);
+  const [selectedProjectsForFeature, setSelectedProjectsForFeature] = useState<(number | string)[]>([]);
 
   const openFeature = useCallback(
     (feature: string) => {
@@ -66,7 +66,7 @@ export function useAIFeature({
     [projects.length, selectedProjectId, setMessages],
   );
 
-  const toggleProjectSelection = useCallback((projectId: number) => {
+  const toggleProjectSelection = useCallback((projectId: number | string) => {
     setSelectedProjectsForFeature((previous) => {
       if (previous.includes(projectId)) {
         return previous.filter((id) => id !== projectId);

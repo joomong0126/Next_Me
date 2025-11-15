@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 export type ProjectType = 'file' | 'link' | 'project';
 
 export interface Project {
-  id: number;
+  id: number | string; // Supabase는 UUID(string)를 사용하므로 number | string 허용
   title: string;
   category: string;
   tags: string[];

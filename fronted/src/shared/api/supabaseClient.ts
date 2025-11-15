@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { readToken } from './tokenStorage';
 
 type TableRow = Record<string, any>;
 
@@ -358,7 +359,36 @@ if (!supabaseUrl || !supabaseAnonKey || useMockSupabase) {
   mockClientActive = true;
 } else {
   console.info('[supabase] Using real Supabase client.');
-  client = createClient(supabaseUrl, supabaseAnonKey);
+  client = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  });
+  
+  // 저장된 토큰이 있으면 세션 복원 시도
+  if (isBrowser) {
+    const token = readToken();
+    if (token) {
+      // 토큰이 있으면 세션 복원 시도
+      // Supabase는 자동으로 세션을 관리하지만, 수동으로도 설정 가능
+      console.info('[supabase] Found stored token, attempting to restore session...');
+      // Supabase는 localStorage에 자체 세션을 저장하므로 별도 설정 불필요
+      // 하지만 토큰이 있으면 auth.getSession()을 호출하여 세션 확인
+      client.auth.getSession().then(({ data, error }) => {
+        if (error) {
+          console.warn('[supabase] Error getting session:', error);
+        } else if (data?.session) {
+          console.info('[supabase] Session restored successfully');
+        } else {
+          console.warn('[supabase] No active session found, user may need to login');
+        }
+      }).catch((error: any) => {
+        console.warn('[supabase] Error restoring session:', error);
+      });
+    }
+  }
 }
 
 export const supabaseClient = client as any;

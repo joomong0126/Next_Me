@@ -90,6 +90,31 @@ export const projects: ProjectsAPI = {
     await wait(350);
     return mockProjects;
   },
+  async create(data: Partial<ProjectRecord>): Promise<ProjectRecord> {
+    await wait(200);
+    const newId = mockProjects.length > 0 ? Math.max(...mockProjects.map(p => p.id)) + 1 : 1;
+    const newProject = { id: newId, ...data } as ProjectRecord;
+    mockProjects.push(newProject);
+    return newProject;
+  },
+  async update(id: number | string, data: Partial<ProjectRecord>): Promise<ProjectRecord> {
+    await wait(200);
+    const projectIndex = mockProjects.findIndex((p) => p.id === id);
+    if (projectIndex === -1) {
+      throw new Error('프로젝트를 찾을 수 없습니다.');
+    }
+    const updatedProject = { ...mockProjects[projectIndex], ...data };
+    mockProjects[projectIndex] = updatedProject;
+    return updatedProject;
+  },
+  async delete(id: number | string): Promise<void> {
+    await wait(200);
+    const projectIndex = mockProjects.findIndex((p) => p.id === id);
+    if (projectIndex === -1) {
+      throw new Error('프로젝트를 찾을 수 없습니다.');
+    }
+    mockProjects.splice(projectIndex, 1);
+  },
 };
 
 

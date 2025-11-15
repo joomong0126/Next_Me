@@ -10,10 +10,10 @@ import { Download, Edit2, Plus, Trash2, Upload } from 'lucide-react';
 
 interface ProjectSidebarProps {
   projects: Project[];
-  selectedProjectId: number | null;
+  selectedProjectId: number | string | null;
   onOpenUploadDialog: () => void;
   onOpenLoadDialog: () => void;
-  onDeleteProject: (id: number) => void;
+  onDeleteProject: (id: number | string) => void;
   onEditProject: (project: Project) => void;
   onViewProjectDetail: (project: Project) => void;
 }
@@ -158,7 +158,7 @@ export function ProjectSidebar({
   );
 }
 
-const buildDisplayProjects = (projects: Project[], selectedProjectId: number | null) => {
+const buildDisplayProjects = (projects: Project[], selectedProjectId: number | string | null) => {
   if (!projects.length) return [];
 
   if (!selectedProjectId) {

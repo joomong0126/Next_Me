@@ -434,7 +434,7 @@ export async function invokeOrganizeSummarizeFunction(params: {
  * @param params.state - 대화 상태 ("start" | undefined)
  */
 export async function invokeOrganizeRefineFunction(params: {
-  projectId?: number;
+  projectId?: number | string;
   answer?: string;
   state?: 'start';
 }): Promise<OrganizeRefineResponse> {

@@ -14,8 +14,8 @@ import { MARKETING_CATEGORIES, DEVELOPMENT_CATEGORIES } from '../constants';
 interface LoadProjectsDialogProps {
   open: boolean;
   projects: Project[];
-  selectedProjectIds: number[];
-  onToggleProject: (projectId: number) => void;
+  selectedProjectIds: (number | string)[];
+  onToggleProject: (projectId: number | string) => void;
   onClose: () => void;
   onConfirm: () => void;
   maxSelectable?: number;

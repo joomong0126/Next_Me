@@ -22,8 +22,8 @@ interface ProjectSelectDialogProps {
   open: boolean;
   featureName: string;
   projects: Project[];
-  selectedProjectIds: number[];
-  onToggleProject: (projectId: number) => void;
+  selectedProjectIds: (number | string)[];
+  onToggleProject: (projectId: number | string) => void;
   onConfirm: () => void;
   onClose: () => void;
   maxSelectable?: number;

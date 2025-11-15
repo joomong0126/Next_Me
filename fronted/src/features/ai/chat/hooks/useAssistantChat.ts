@@ -19,7 +19,7 @@ const DEFAULT_WELCOME_MESSAGE =
 const HISTORY_LIMIT = 10;
 
 const buildWelcomeMessage = (
-  projectId: number,
+  projectId: number | string,
   options?: { projectTitle?: string | null; welcomeMessage?: string },
 ): AssistantMessage => ({
   projectId,
@@ -110,9 +110,9 @@ const resolveChatEndpoint = (customEndpoint?: string) => {
 export interface UseAssistantChatParams {
   projects: Project[];
   selectedProject: Project | null;
-  selectedProjectId: number | null;
+  selectedProjectId: number | string | null;
   userRole: string;
-  setSelectedProjectId: Dispatch<SetStateAction<number | null>>;
+  setSelectedProjectId: Dispatch<SetStateAction<number | string | null>>;
   setProjects: Dispatch<SetStateAction<Project[]>>;
   setProjectToEdit: Dispatch<SetStateAction<Project | null>>;
   setIsEditDialogOpen: Dispatch<SetStateAction<boolean>>;
@@ -130,7 +130,7 @@ export interface UseAssistantChatResult {
   handleSendMessage: () => Promise<void>;
   handleResetChat: () => Promise<void> | void;
   handleOrganizeWithAI: (project: Project) => Promise<void>;
-  handleSaveProjectOrganizing: (projectId: number) => Promise<void>;
+  handleSaveProjectOrganizing: (projectId: number | string) => Promise<void>;
 }
 
 export function useAssistantChat({
@@ -148,12 +148,12 @@ export function useAssistantChat({
   const [messages, setMessages] = useState<AssistantMessage[]>([buildWelcomeMessage(0, { welcomeMessage })]);
   const [inputValue, setInputValue] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [organizingProjectIds, setOrganizingProjectIds] = useState<number[]>([]);
-  const [organizingQuestionIndex, setOrganizingQuestionIndex] = useState<Record<number, number>>({});
+  const [organizingProjectIds, setOrganizingProjectIds] = useState<(number | string)[]>([]);
+  const [organizingQuestionIndex, setOrganizingQuestionIndex] = useState<Record<string | number, number>>({});
 
-  const selectedProjectIdRef = useRef<number | null>(selectedProjectId);
+  const selectedProjectIdRef = useRef<number | string | null>(selectedProjectId);
   const messagesRef = useRef<AssistantMessage[]>(messages);
-  const autoSaveTriggeredProjectIdsRef = useRef<Set<number>>(new Set());
+  const autoSaveTriggeredProjectIdsRef = useRef<Set<number | string>>(new Set());
 
   // 프로젝트를 Supabase에 업데이트하는 함수
   const updateProjectInDatabase = useCallback(async (project: Project) => {
@@ -229,7 +229,7 @@ export function useAssistantChat({
     }
   }, []);
 
-  const registerOrganizingProject = useCallback((projectId: number) => {
+  const registerOrganizingProject = useCallback((projectId: number | string) => {
     // 이미 organize 흐름을 시작한 프로젝트 목록을 기억하여 이후 재호출 시 메시지를 재사용합니다.
     setOrganizingProjectIds((previous) => (previous.includes(projectId) ? previous : [...previous, projectId]));
   }, []);
@@ -449,7 +449,10 @@ export function useAssistantChat({
             };
 
             setProjects((previous) => previous.map((p) => (p.id === currentProjectId ? updatedProject : p)));
+            // DONE 단계: 프로젝트 분석 완료 후 편집창 열기
             setProjectToEdit(updatedProject);
+            setIsEditDialogOpen(true);
+            toast.success('프로젝트 분석이 완료되었습니다! 편집창에서 확인해주세요.');
           }
         } else if (response.message || response.content) {
           // ING 단계: 일반 메시지
@@ -804,7 +807,7 @@ export function useAssistantChat({
   );
 
   const handleSaveProjectOrganizing = useCallback(
-    async (projectId: number) => {
+    async (projectId: number | string) => {
       const targetProject = projects.find((project) => project.id === projectId);
       if (!targetProject) return;
 
@@ -879,11 +882,14 @@ export function useAssistantChat({
       // 별도의 요약 함수를 호출할 필요 없이 이미 업데이트된 프로젝트 정보를 사용합니다.
       // (assistant-organize-summarize 함수는 사용하지 않음)
       
-      // 이미 DONE 단계에서 프로젝트가 업데이트되었으므로, 
-      // 여기서는 프로젝트 편집 다이얼로그만 열면 됩니다.
-      setProjectToEdit(targetProject);
-      setIsEditDialogOpen(true);
-      toast.success('프로젝트 정보가 업데이트되었습니다!');
+      // 이미 DONE 단계에서 프로젝트가 업데이트되고 편집창이 열렸으므로,
+      // 여기서는 중복 방지를 위해 편집창이 이미 열려있는지 확인 후 필요시만 열기
+      // (DONE 단계에서 이미 편집창을 열었으므로 이 함수는 중복 호출 방지용)
+      const currentProject = projects.find((p) => p.id === projectId);
+      if (currentProject) {
+        setProjectToEdit(currentProject);
+        setIsEditDialogOpen(true);
+      }
     },
     [messages, projects, setIsEditDialogOpen, setMessages, setProjectToEdit, setProjects, updateProjectInDatabase],
   );

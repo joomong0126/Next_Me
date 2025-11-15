@@ -17,7 +17,7 @@ interface ChatPanelProps {
   isGenerating: boolean;
   onResetChat: () => void | Promise<void>;
   onFileUpload?: (event: ChangeEvent<HTMLInputElement>) => void; // 파일 업로드 기능이 있을 때만 사용
-  onSaveProjectOrganizing?: (projectId: number) => void | Promise<void>; // 프로젝트 관리 기능이 있을 때만 사용
+  onSaveProjectOrganizing?: (projectId: number | string) => void | Promise<void>; // 프로젝트 관리 기능이 있을 때만 사용
   onContinueOrganizing?: () => void; // 프로젝트 관리 기능이 있을 때만 사용
   onOpenProjectUpload?: () => void; // 프로젝트 관리 기능이 있을 때만 사용
 }

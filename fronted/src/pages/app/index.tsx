@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { applyTheme } from '@/shared/lib/themes';
@@ -41,6 +41,7 @@ export default function AppLayout() {
   const { data: projectsData = [], isLoading: isLoadingProjects } = useProjects();
   // React Query의 데이터를 로컬 상태로 관리 (outletContext에서 setProjects가 필요하므로)
   const [projects, setProjects] = useState<Project[]>([]);
+  const prevProjectsDataRef = useRef<Project[]>([]);
   const [darkMode, setDarkMode] = useState(false);
   const [themeName, setThemeName] = useState<string>('black');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -85,7 +86,14 @@ export default function AppLayout() {
   // React Query에서 가져온 프로젝트 데이터를 로컬 상태와 동기화
   // (outletContext에서 setProjects가 사용되므로 상태 유지 필요)
   useEffect(() => {
-    setProjects(projectsData);
+    // 이전 값과 비교하여 실제로 변경되었을 때만 업데이트 (무한 루프 방지)
+    const prevIds = prevProjectsDataRef.current.map(p => p.id).join(',');
+    const currentIds = projectsData.map(p => p.id).join(',');
+    
+    if (prevIds !== currentIds || prevProjectsDataRef.current.length !== projectsData.length) {
+      setProjects(projectsData);
+      prevProjectsDataRef.current = projectsData;
+    }
   }, [projectsData]);
 
   useEffect(() => {

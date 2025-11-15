@@ -18,7 +18,7 @@ interface EditProjectDialogProps {
   open: boolean;
   project: Project | null;
   onClose: () => void;
-  onSave: (projectId: number, data: EditProjectFormValues) => void;
+  onSave: (projectId: number | string, data: EditProjectFormValues) => void | Promise<void>;
   availableCategories: string[];
   onOrganizeWithAI: (project: Project) => void | Promise<void>;
 }
@@ -91,9 +91,9 @@ export function EditProjectDialog({
     }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!project) return;
-    onSave(project.id, formValues);
+    await onSave(project.id, formValues);
   };
 
   if (!project) {
