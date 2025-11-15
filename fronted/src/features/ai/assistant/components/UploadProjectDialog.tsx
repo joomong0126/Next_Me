@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/shadcn/button';
 import { Input } from '@/shared/ui/shadcn/input';
 import { Textarea } from '@/shared/ui/shadcn/textarea';
 
-import { FileText, Link2, Upload } from 'lucide-react';
+import { FileText, Link2, Upload, X, File } from 'lucide-react';
 
 type UploadType = 'image' | 'document' | 'pdf' | 'link' | 'text' | null;
 
@@ -28,12 +28,14 @@ export function UploadProjectDialog({
   const [linkUrl, setLinkUrl] = useState('');
   const [textTitle, setTextTitle] = useState('');
   const [textInput, setTextInput] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleReset = () => {
     setUploadType(null);
     setLinkUrl('');
     setTextInput('');
     setTextTitle('');
+    setSelectedFile(null);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -51,6 +53,37 @@ export function UploadProjectDialog({
   const handleTextSubmit = () => {
     onTextSubmit({ title: textTitle, content: textInput });
     handleReset();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleFileSubmit = () => {
+    if (selectedFile) {
+      onFileSelected(selectedFile);
+      handleReset();
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setSelectedFile(null);
+    // Reset file input
+    const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
   return (
@@ -120,27 +153,50 @@ export function UploadProjectDialog({
           </div>
         ) : (
           <div className="space-y-4 py-4">
-            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
-              <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">파일을 드래그하거나 클릭하여 업로드하세요</p>
-              <input
-                type="file"
-                id="file-upload"
-                className="hidden"
-                accept={uploadType === 'image' ? 'image/*' : uploadType === 'pdf' ? '.pdf' : '.doc,.docx,.txt'}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    onFileSelected(file);
-                    handleReset();
-                  }
-                }}
-              />
-              <Button onClick={() => document.getElementById('file-upload')?.click()}>파일 선택</Button>
+            {!selectedFile ? (
+              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+                <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">파일을 드래그하거나 클릭하여 업로드하세요</p>
+                <input
+                  type="file"
+                  id="file-upload"
+                  className="hidden"
+                  accept={uploadType === 'image' ? 'image/*' : uploadType === 'pdf' ? '.pdf' : '.doc,.docx,.txt'}
+                  onChange={handleFileChange}
+                />
+                <Button onClick={() => document.getElementById('file-upload')?.click()}>파일 선택</Button>
+              </div>
+            ) : (
+              <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <File className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{formatFileSize(selectedFile.size)}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="flex-shrink-0"
+                    onClick={handleRemoveFile}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleReset} className="flex-1">
+                뒤로
+              </Button>
+              {selectedFile && (
+                <Button onClick={handleFileSubmit} className="flex-1">
+                  업로드
+                </Button>
+              )}
             </div>
-            <Button variant="outline" onClick={handleReset} className="w-full">
-              뒤로
-            </Button>
           </div>
         )}
       </DialogContent>

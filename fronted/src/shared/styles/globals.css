@@ -221,6 +221,16 @@ html {
   background: rgba(75, 85, 99, 0.3) !important;
 }
 
+/* 스크롤바 숨기기 */
+.scrollbar-hide {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}
+
 /* EditProjectDialog label 스타일 강제 적용 */
 .edit-project-dialog label.text-primary,
 .edit-project-dialog label[class*="text-primary"] {

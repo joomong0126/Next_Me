@@ -77,6 +77,16 @@
               if (req.headers.authorization) {
                 console.log('[Vite Proxy] Authorization 헤더 전달됨');
               }
+              // Content-Type 헤더 확인 및 설정
+              if (req.headers['content-type']) {
+                console.log('[Vite Proxy] Content-Type:', req.headers['content-type']);
+                // JSON 요청인 경우 명시적으로 설정
+                if (req.headers['content-type'].includes('application/json')) {
+                  proxyReq.setHeader('Content-Type', 'application/json');
+                }
+              }
+              // 요청 본문이 있는 경우 로깅 (디버깅용)
+              // req.body는 직접 접근할 수 없으므로 제거
             });
             proxy.on('proxyRes', (proxyRes, req, _res) => {
               console.log('[Vite Proxy] 응답 받음:', {
@@ -86,6 +96,8 @@
               });
             });
           },
+          // 프록시가 요청 본문을 제대로 전달하도록 설정
+          ws: false,
         },
       },
     },

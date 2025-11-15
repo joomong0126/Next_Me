@@ -368,12 +368,23 @@ export async function processWithRealService(
   
   if (payload.kind === 'file') {
     // 파일인 경우 파일을 formData에 추가
-    formData.append('file', payload.file);
+    // 파일 이름을 명시적으로 지정하여 서버에서 올바르게 인식하도록 함
+    // Blob 객체로 변환하여 MIME 타입 보존
+    const fileBlob = payload.file instanceof Blob 
+      ? payload.file 
+      : new Blob([payload.file], { type: payload.mimeType || 'application/octet-stream' });
+    
+    formData.append('file', fileBlob, payload.fileName);
     formData.append('kind', 'file');
+    formData.append('fileName', payload.fileName);
+    formData.append('mimeType', payload.mimeType || 'application/octet-stream');
+    formData.append('fileSize', payload.size.toString());
+    
     console.log('[AI Assistant] 파일 업로드:', {
       fileName: payload.fileName,
       fileSize: payload.size,
       mimeType: payload.mimeType,
+      isPDF: payload.mimeType === 'application/pdf' || payload.fileName.toLowerCase().endsWith('.pdf'),
     });
   } else if (payload.kind === 'link') {
     // 링크인 경우 URL을 formData에 추가
@@ -399,11 +410,14 @@ export async function processWithRealService(
   });
 
   // JWT 없이 직접 fetch로 호출
+  // 중요: FormData를 사용할 때는 Content-Type 헤더를 설정하지 않아야 합니다.
+  // 브라우저가 자동으로 multipart/form-data와 boundary를 설정합니다.
   let response: Response;
   try {
     response = await fetch(endpointUrl, {
       method: 'POST',
       body: formData,
+      // Content-Type을 명시적으로 설정하지 않음 - 브라우저가 자동으로 설정
       // JWT 인증 헤더 제거 - formData만 전송
       // CORS 문제 해결을 위해 credentials 옵션 추가하지 않음 (기본값 'same-origin')
     });
@@ -440,26 +454,117 @@ export async function processWithRealService(
     headers: Object.fromEntries(response.headers.entries()),
   });
 
+  // 응답 본문을 한 번만 읽기
+  const responseText = await response.text();
+  console.log('[AI Assistant] 응답 본문 (raw):', responseText.substring(0, 500));
+
   let data;
   if (!response.ok) {
-    const errorText = await response.text();
+    // 에러 응답도 JSON 형식일 수 있으므로 파싱 시도
+    let errorMessage = responseText;
+    let userFriendlyMessage = '';
+    
+    try {
+      const errorJson = JSON.parse(responseText);
+      // 중첩된 에러 메시지 추출
+      if (errorJson.error) {
+        errorMessage = typeof errorJson.error === 'string' 
+          ? errorJson.error 
+          : JSON.stringify(errorJson.error);
+        
+        // 중첩된 JSON 문자열이 있는 경우 다시 파싱 시도
+        if (typeof errorJson.error === 'string' && errorJson.error.includes('{')) {
+          try {
+            const nestedError = JSON.parse(errorJson.error);
+            if (nestedError.detail) {
+              errorMessage = nestedError.detail;
+            }
+          } catch {
+            // 중첩 파싱 실패 시 원본 사용
+          }
+        }
+      } else if (errorJson.message) {
+        errorMessage = errorJson.message;
+      } else {
+        errorMessage = JSON.stringify(errorJson);
+      }
+      
+      // 사용자 친화적인 메시지 생성
+      // 바이너리 파일을 텍스트로 읽으려고 할 때 발생하는 오류 감지
+      const isBinaryFileError = errorMessage.includes('utf-8') && errorMessage.includes('codec') && 
+        (errorMessage.includes("can't decode byte") || errorMessage.includes("invalid"));
+      
+      if (isBinaryFileError && payload.kind === 'file') {
+        // 파일 타입 감지
+        const mimeType = payload.mimeType || '';
+        const fileName = payload.fileName || '';
+        const lowerFileName = fileName.toLowerCase();
+        
+        const isImage = mimeType.startsWith('image/') || 
+          /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(fileName);
+        const isPDF = mimeType === 'application/pdf' || lowerFileName.endsWith('.pdf');
+        const isDocument = mimeType.includes('document') || 
+          /\.(doc|docx|txt|rtf)$/i.test(fileName);
+        
+        // 특정 바이트 오류 감지 (파일 타입 힌트)
+        const isJPEGError = errorMessage.includes('byte 0xff');
+        const isPNGError = errorMessage.includes('byte 0x89');
+        
+        if (isPDF) {
+          userFriendlyMessage = 'PDF 파일 처리 중 오류가 발생했습니다. 서버 측에서 PDF 파일을 텍스트로 읽으려고 시도하고 있습니다. 서버 관리자에게 문의하거나 다른 파일 형식으로 시도해주세요.';
+        } else if (isImage || isJPEGError || isPNGError) {
+          const imageType = isJPEGError ? 'JPEG' : isPNGError ? 'PNG' : '이미지';
+          userFriendlyMessage = `${imageType} 파일 처리 중 오류가 발생했습니다. 서버 측에서 이미지 파일을 텍스트로 읽으려고 시도하고 있습니다. 서버 관리자에게 문의하거나 잠시 후 다시 시도해주세요.`;
+        } else if (isDocument) {
+          userFriendlyMessage = '문서 파일 처리 중 오류가 발생했습니다. 서버 측에서 파일을 올바르게 처리하지 못하고 있습니다. 서버 관리자에게 문의하거나 다른 파일 형식으로 시도해주세요.';
+        } else {
+          userFriendlyMessage = '파일 처리 중 오류가 발생했습니다. 서버 측에서 바이너리 파일을 텍스트로 읽으려고 시도하고 있습니다. 서버 관리자에게 문의하거나 다른 파일 형식으로 시도해주세요.';
+        }
+      } else if (errorMessage.includes("can't decode byte 0x89") || 
+                 errorMessage.includes("can't decode byte 0xff") || 
+                 errorMessage.includes("invalid start byte")) {
+        userFriendlyMessage = '이미지 파일 처리 중 오류가 발생했습니다. 서버 측에서 파일 형식 처리 문제가 있는 것 같습니다. 잠시 후 다시 시도해주세요.';
+      } else if (errorMessage.includes('utf-8') && errorMessage.includes('codec')) {
+        userFriendlyMessage = '파일 인코딩 처리 중 오류가 발생했습니다. 서버 측에서 바이너리 파일을 텍스트로 읽으려고 시도하고 있습니다. 서버 관리자에게 문의하거나 다른 파일 형식으로 시도해주세요.';
+      } else if (response.status === 500) {
+        userFriendlyMessage = '서버에서 일시적인 오류가 발생했습니다. 서버 관리자가 수정 중일 수 있습니다. 잠시 후 다시 시도해주세요.';
+      }
+    } catch {
+      // JSON 파싱 실패 시 원본 텍스트 사용
+      errorMessage = responseText || response.statusText || '알 수 없는 오류';
+      if (response.status === 500) {
+        userFriendlyMessage = '서버에서 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      }
+    }
+    
     console.error('[AI Assistant] API 호출 실패:', {
       status: response.status,
       statusText: response.statusText,
-      error: errorText,
+      error: errorMessage,
+      userFriendlyMessage,
+      rawResponse: responseText,
     });
-    throw new Error(`AI 분석 API 호출 실패: ${response.status} ${response.statusText}\n${errorText}`);
+    
+    // 사용자 친화적인 메시지가 있으면 우선 사용, 없으면 원본 에러 메시지 사용
+    const finalMessage = userFriendlyMessage || `AI 분석 API 호출 실패: ${response.status} ${response.statusText}\n${errorMessage}`;
+    throw new Error(finalMessage);
   }
 
+  // 성공 응답 파싱
   try {
-    const responseText = await response.text();
-    console.log('[AI Assistant] 응답 본문 (raw):', responseText.substring(0, 500));
+    if (!responseText || responseText.trim().length === 0) {
+      throw new Error('응답 본문이 비어 있습니다.');
+    }
     
     data = JSON.parse(responseText);
     console.log('[AI Assistant] 응답 데이터 (parsed):', data);
   } catch (parseError) {
-    console.error('[AI Assistant] JSON 파싱 실패:', parseError);
-    throw new Error('응답 데이터를 파싱할 수 없습니다.');
+    console.error('[AI Assistant] JSON 파싱 실패:', {
+      parseError,
+      responseText: responseText.substring(0, 200),
+      responseLength: responseText.length,
+    });
+    throw new Error(`응답 데이터를 파싱할 수 없습니다: ${(parseError as Error)?.message || '알 수 없는 오류'}`);
   }
 
   if (!data) {

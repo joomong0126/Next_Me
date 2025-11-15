@@ -3,7 +3,7 @@ import { ChangeEvent, KeyboardEvent } from 'react';
 import type { Project } from '@/entities/project';
 import type { AssistantMessage } from './types';
 
-import { Bot, Loader2, MessageSquare, RotateCcw, Send, User, Plus, Check } from 'lucide-react';
+import { Bot, Loader2, MessageSquare, RotateCcw, Send, User, Plus, Check, Download } from 'lucide-react';
 
 import { Button } from '@/shared/ui/shadcn/button';
 import { Textarea } from '@/shared/ui/shadcn/textarea';
@@ -61,7 +61,7 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
         {messages.map((message, index) => {
           const timestamp = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
 
@@ -124,6 +124,20 @@ export function ChatPanel({
                         className="rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                       >
                         프로젝트 등록하기
+                      </Button>
+                    </div>
+                  )}
+
+                  {message.role === 'ai' && message.url && message.filename && (
+                    <div className="mt-3">
+                      <Button
+                        onClick={() => {
+                          window.open(message.url, '_blank');
+                        }}
+                        className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        {message.filename} 다운로드
                       </Button>
                     </div>
                   )}

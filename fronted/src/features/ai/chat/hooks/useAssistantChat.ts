@@ -334,6 +334,7 @@ export function useAssistantChat({
     setMessages((previous) => [...previous, userMessage]);
     setInputValue('');
 
+
     if (shouldUseAssistantMock() && organizingProjectIds.includes(currentProjectId)) {
       // ✨ mock 흐름: 사용자가 답변할 때마다 프런트가 다음 질문/마무리 메시지를 직접 이어 붙입니다.
       // 메시지는 로컬 상태로만 관리 (데이터베이스 저장 안함)

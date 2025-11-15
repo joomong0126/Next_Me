@@ -2,12 +2,9 @@ import type { Project } from '@/entities/project';
 
 import type { AssistantMessage } from '@/features/ai/chat/types';
 
-export type AIFeatureName = '포트폴리오 작성' | '자기소개서 작성' | '역량 분석' | '학습 계획' | '목표 직무 제안';
+export type AIFeatureName = '포트폴리오 작성' | '자기소개서 작성' | '역량 분석' | '학습 계획' | '목표 직무 제안' | '최종 개인';
 
 export const MAX_FEATURE_PROJECT_SELECTION = 3;
-
-const SELF_INTRO_GUIDANCE =
-  '자기소개서 작성을 도와드릴게요!\n\n**Settings에 등록된 프로필과 커리어 정보**를 바탕으로 자기소개서를 작성할 수 있어요.\n더 풍부한 결과를 원하신다면, **Settings 탭에서 "경력 · 기술 · 활동 정보"**를 추가해보세요.\n\n프로젝트를 선택하시면 더욱 구체적인 자기소개서를 작성해드릴게요. 어떤 프로젝트를 포함하시겠어요?';
 
 const MARKETING_ROLE_KEYWORDS = ['marketing', '마케팅'];
 const DEVELOPMENT_ROLE_KEYWORDS = ['developer', '개발', '프론트엔드 개발', '백엔드 개발'];
@@ -23,19 +20,17 @@ export interface FeatureResultContext {
   userRole: string;
 }
 
+// 포트폴리오/자기소개서는 API에서 메시지를 받아오므로 로컬 안내 메시지 제거
 export const createFeaturePreparationMessage = ({
   feature,
   projectId,
 }: FeaturePreparationContext): AssistantMessage | null => {
-  if (feature === '자기소개서 작성') {
-    return {
-      projectId,
-      role: 'ai',
-      content: SELF_INTRO_GUIDANCE,
-      timestamp: new Date(),
-    };
+  // 포트폴리오/자기소개서는 API 응답 사용
+  if (feature === '포트폴리오 작성' || feature === '자기소개서 작성') {
+    return null;
   }
 
+  // 다른 기능들은 필요시 여기에 추가
   return null;
 };
 
@@ -91,6 +86,14 @@ export const createFeatureResultContent = ({ feature, projects, userRole }: Feat
         '\n',
       )}\n\n**이유**\n보유하신 ${highlightedTags} 등의 역량이 해당 직무에 적합합니다!`;
     }
+    case '최종 개인':
+      return `선택하신 프로젝트(${projectTitles})를 바탕으로 당신의 커리어 방향성을 분석했습니다!\n\n**커리어 방향성**\n${Array.from(new Set(projects.map((project) => `• ${project.category}`))).join(
+        '\n',
+      )}\n\n**핵심 역량**\n${uniqueTags
+        .map((tag) => `• ${tag}`)
+        .join('\n')}\n\n**프로젝트 경험 요약**\n${projects
+        .map((project) => `• ${project.title}: ${project.summary}`)
+        .join('\n')}\n\n이 분석을 바탕으로 더 구체적인 커리어 계획을 세워보세요!`;
     default:
       return '선택하신 기능을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.';
   }
