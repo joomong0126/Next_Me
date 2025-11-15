@@ -184,19 +184,18 @@ async def projects_assistant(request: Request):
                 "created_at": datetime.now().isoformat()
             }
             
-            # 응답 생성 (session_id를 body에 포함)
+            # 응답 생성
             return {
-                "message": result.get("message", "안녕하세요! 자기소개서 작성을 도와드리겠습니다."),
-                "session_id": session_id
+                "message": result.get("message", "안녕하세요! 자기소개서 작성을 도와드리겠습니다.")
             }
         
         # 대화 진행 요청 처리
         elif "answer" in body:
-            # body에서 session_id 가져오기
-            session_id = body.get("session_id")
-            
-            if not session_id or session_id not in sessions:
-                raise HTTPException(status_code=400, detail="세션을 찾을 수 없습니다. session_id를 확인해주세요.")
+            # 가장 최근 세션 자동 사용 (유저가 1명이므로)
+            if sessions:
+                session_id = max(sessions.keys(), key=lambda k: sessions[k].get("created_at", ""))
+            else:
+                raise HTTPException(status_code=400, detail="세션을 찾을 수 없습니다. 먼저 START 요청을 보내주세요.")
             
             session = sessions[session_id]
             
@@ -235,8 +234,7 @@ async def projects_assistant(request: Request):
                 })
             
             response_data = {
-                "message": result.get("message", "응답을 생성하는 중 오류가 발생했습니다."),
-                "session_id": session_id
+                "message": result.get("message", "응답을 생성하는 중 오류가 발생했습니다.")
             }
             
             # Word 파일 생성 및 URL 생성 (완료 상태일 때)
