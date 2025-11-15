@@ -40,6 +40,7 @@ AI 기반 커리어 코치 서비스 **Next MEver2** 의 프런트엔드 코드 
 
 - **Framework**: React 18, Vite, TypeScript
 - **State & Data**: React Query, React Router, Zustand-free local state
+- **Backend**: Supabase (인증, 데이터베이스, 스토리지)
 - **UI**: Tailwind 기반 Shadcn UI, Lucide Icons
 - **Mocking**: MSW(Mock Service Worker)
 - **기타**: html2canvas, jspdf 등 문서/이미지 처리 유틸 (향후 PDF/이미지 출력 대비)
@@ -63,13 +64,33 @@ src/
 npm install
 ```
 
-`.env` 파일에 Mock 플래그를 설정합니다.
+### 환경 변수 설정
 
+프로젝트 루트에 `.env` 파일을 생성하고 다음 환경 변수를 설정합니다:
+
+#### Mock 모드 (기본값)
 ```
 VITE_USE_MOCK=true
 ```
 
-- Mock 비활성화(`false`) 시 실제 Supabase 백엔드와 연결할 수 있도록 설계되어 있습니다.
+#### Supabase 연결 모드
+```
+VITE_USE_MOCK=false
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+#### AI 기능 사용 시 (선택사항)
+```
+VITE_AI_BASE_URL=your_ai_server_url
+VITE_SUPABASE_PROJECT_BUCKET=projects
+VITE_SUPABASE_ASSISTANT_FUNCTION=assistant_function_name
+VITE_SUPABASE_ASSISTANT_ORGANIZE_START=organize_start_function
+VITE_SUPABASE_ASSISTANT_ORGANIZE_SUMMARIZE=organize_summarize_function
+VITE_SUPABASE_ASSISTANT_ORGANIZE_REFINE=organize_refine_function
+```
+
+**Supabase 프로젝트 URL과 Anon Key는 Supabase Dashboard → Settings → API에서 확인할 수 있습니다.**
 
 개발 서버 실행:
 
@@ -79,13 +100,30 @@ npm run dev
 
 브라우저에서 `http://localhost:5173` 으로 접속하세요.
 
+### Supabase 연결 상태
+
+프로젝트는 **Supabase와 완전히 통합**되어 있습니다:
+
+- ✅ **인증 (Authentication)**: 이메일/비밀번호, Google OAuth 로그인 지원
+- ✅ **데이터베이스**: 사용자 프로필, 프로젝트 데이터 저장
+- ✅ **스토리지**: 프로젝트 파일 업로드 및 관리
+- ✅ **Edge Functions**: AI 어시스턴트 기능을 위한 서버리스 함수 연동
+
+**구현된 Supabase 어댑터:**
+- `src/shared/api/adapters/supabase/auth.ts` - 인증 API
+- `src/shared/api/adapters/supabase/projects.ts` - 프로젝트 API
+- `src/shared/api/supabaseClient.ts` - Supabase 클라이언트 초기화
+
 ### Mock ↔ Supabase 전환 가이드
 
 | 모드 | 필수 환경 변수 | 설명 |
 | --- | --- | --- |
-| **Mock** (기본 로컬 체험) | `VITE_USE_MOCK=true` | - MSW가 `/auth`, `/projects`, `/chat` 요청을 가로채 mock 데이터/응답을 돌려줍니다.<br>- Supabase/AI 서버 주소가 비어 있어도 `AIAssistant`는 자동으로 `/chat` mock 엔드포인트를 사용합니다. |
-| **Supabase + AI 서버** | `VITE_USE_MOCK=false` 또는 제거<br>`VITE_SUPABASE_URL`<br>`VITE_SUPABASE_ANON_KEY`<br>`VITE_AI_BASE_URL` | - Mock을 끄면 `shared/api`가 Supabase 어댑터를 로딩합니다.<br>- `AIAssistant`는 `VITE_AI_BASE_URL` 값을 기준으로 `POST {AI_BASE_URL}/chat` 호출을 수행합니다.<br>- 세 값을 모두 채운 뒤 반드시 `npm run dev`를 재시작하세요. |
+| **Mock** (기본 로컬 체험) | `VITE_USE_MOCK=true` | - MSW가 `/auth`, `/projects`, `/chat` 요청을 가로채 mock 데이터/응답을 돌려줍니다.<br>- Supabase/AI 서버 주소가 비어 있어도 `AIAssistant`는 자동으로 `/chat` mock 엔드포인트를 사용합니다.<br>- 로컬 개발 및 테스트에 적합합니다. |
+| **Supabase 연결** | `VITE_USE_MOCK=false`<br>`VITE_SUPABASE_URL`<br>`VITE_SUPABASE_ANON_KEY` | - Mock을 끄면 `shared/api`가 Supabase 어댑터를 로딩합니다.<br>- 실제 Supabase 프로젝트와 연결되어 인증 및 데이터 저장이 가능합니다.<br>- 환경 변수를 설정한 후 반드시 `npm run dev`를 재시작하세요. |
+| **Supabase + AI 서버** | 위 항목 +<br>`VITE_AI_BASE_URL` | - `AIAssistant`는 `VITE_AI_BASE_URL` 값을 기준으로 `POST {AI_BASE_URL}/chat` 호출을 수행합니다.<br>- AI 기능을 완전히 사용하려면 AI 서버 URL이 필요합니다. |
 
+**참고사항:**
 - 개발/실 서버를 번갈아 사용할 경우 `.env.development`, `.env.production` 등으로 분리 관리하면 편리합니다.
-- Supabase/AI 서버 연결 오류가 발생하면 브라우저 콘솔에서 `import.meta.env.VITE_USE_MOCK` 값과 `/chat` 네트워크 응답 상태를 먼저 확인하세요.
+- Supabase/AI 서버 연결 오류가 발생하면 브라우저 콘솔에서 `import.meta.env.VITE_USE_MOCK` 값과 네트워크 응답 상태를 먼저 확인하세요.
+- Supabase 이메일 확인 설정은 `docs/SUPABASE_EMAIL_CONFIRMATION_SETUP.md`를 참고하세요.
   
