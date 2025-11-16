@@ -43,23 +43,35 @@ def encode_image_to_base64(image_path: str) -> Optional[str]:
 
 
 def analyze_image(file_path: str) -> str:
-    """Vision API를 사용하여 이미지를 분석합니다."""
+    """GPT-4o Vision으로 이미지를 상세 분석합니다."""
     try:
         base64_image = encode_image_to_base64(file_path)
         if not base64_image:
             return ""
         
-        prompt = """이 이미지를 분석하여 프로젝트 메타데이터를 추출해주세요.
-다음 정보를 찾아주세요:
-- 프로젝트 제목
-- 프로젝트 카테고리 (예: 웹 개발, 앱 개발, 데이터 분석, 기계학습 등)
-- 관련 키워드/태그
-- 사용자의 역할 (예: 개발자, 디자이너, PM 등)
-- 주요 성과나 결과물
-- 사용된 기술/도구
-- 프로젝트에 대한 상세 설명
+        # 이미지 타입 자동 감지
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if not mime_type or not mime_type.startswith('image/'):
+            mime_type = "image/jpeg"
+        
+        prompt = """이 이미지를 분석하여 프로젝트/활동 메타데이터를 추출해주세요.
 
-이미지에서 텍스트가 있다면 모두 읽어주세요. 가능한 모든 정보를 추출해주세요."""
+다음 정보를 찾아주세요:
+- 프로젝트/활동 제목
+- 카테고리 (예: SNS 운영, 마케팅 캠페인, 웹 개발, 데이터 분석, AI/ML 등)
+- 활동 기간 (시작일~종료일, 있다면)
+- 담당 역할 (예: 개발자, 마케터, 기획자, 디자이너 등)
+- 주요 성과/지표 (숫자가 있으면 구체적으로, 예: 팔로워 증가율 150%, 성능 개선 30% 등)
+- 사용된 기술/도구/플랫폼 (예: React, Python, Instagram, Google Analytics 등)
+- 프로젝트 상세 설명 (핵심 내용을 3-5문장으로 요약)
+- 관련 키워드/태그
+
+**중요**: 
+- 이미지에 있는 차트, 그래프, 표, 스크린샷의 내용도 모두 읽어주세요
+- 텍스트와 이미지를 모두 종합해서 분석해주세요
+- 모든 숫자와 단위를 정확히 유지해주세요
+- 발표 자료나 포스터인 경우 각 섹션의 내용을 모두 파악해주세요
+- UI/디자인 요소도 설명해주세요 (색상, 레이아웃, 브랜딩 등)"""
 
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -71,13 +83,14 @@ def analyze_image(file_path: str) -> str:
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+                                "url": f"data:{mime_type};base64,{base64_image}"
                             }
                         }
                     ]
                 }
             ],
-            max_tokens=2000
+            max_tokens=4000,
+            temperature=0.2
         )
         
         return response.choices[0].message.content
@@ -87,7 +100,69 @@ def analyze_image(file_path: str) -> str:
 
 
 def analyze_pdf(file_path: str) -> str:
-    """PDF 파일을 텍스트로 추출하고 벡터화하여 분석합니다."""
+    """GPT-4o Vision으로 PDF를 직접 분석합니다 (이미지+텍스트 혼합 PDF 지원)."""
+    try:
+        # PDF 파일 크기 확인 (20MB 제한)
+        file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+        
+        if file_size_mb > 20:
+            print(f"PDF 파일이 너무 큽니다 ({file_size_mb:.1f}MB). 텍스트 추출 방식으로 폴백합니다.")
+            return analyze_pdf_fallback(file_path)
+        
+        # PDF를 base64로 인코딩
+        with open(file_path, "rb") as f:
+            pdf_base64 = base64.b64encode(f.read()).decode('utf-8')
+        
+        # GPT-4o Vision으로 PDF 분석
+        prompt = """이 PDF 문서를 분석하여 프로젝트/활동 메타데이터를 추출해주세요.
+
+다음 정보를 찾아주세요:
+- 프로젝트/활동 제목
+- 카테고리 (예: SNS 운영, 마케팅 캠페인, 웹 개발, 데이터 분석, AI/ML 등)
+- 활동 기간 (시작일~종료일, 있다면)
+- 담당 역할 (예: 개발자, 마케터, 기획자, 디자이너 등)
+- 주요 성과/지표 (숫자가 있으면 구체적으로, 예: 팔로워 증가율 150%, 성능 개선 30% 등)
+- 사용된 기술/도구/플랫폼 (예: React, Python, Instagram, Google Analytics 등)
+- 프로젝트 상세 설명 (핵심 내용을 3-5문장으로 요약)
+- 관련 키워드/태그
+
+**중요**: 
+- PDF의 모든 페이지를 확인해주세요
+- 이미지에 있는 차트, 그래프, 표, 스크린샷의 내용도 모두 읽어주세요
+- 텍스트와 이미지를 모두 종합해서 분석해주세요
+- 모든 숫자와 단위를 정확히 유지해주세요
+- 발표 자료나 포스터인 경우 각 슬라이드/섹션의 내용을 모두 파악해주세요"""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:application/pdf;base64,{pdf_base64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=4000,
+            temperature=0.2
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        print(f"GPT-4o PDF 분석 오류: {str(e)}")
+        print("텍스트 추출 방식으로 폴백합니다...")
+        return analyze_pdf_fallback(file_path)
+
+
+def analyze_pdf_fallback(file_path: str) -> str:
+    """PDF 파일을 텍스트로 추출하고 벡터화하여 분석합니다 (폴백 방식)."""
     try:
         # PDF 로딩
         loader = PyPDFLoader(file_path)
@@ -106,7 +181,7 @@ def analyze_pdf(file_path: str) -> str:
             return analyze_text_with_llm(full_text)
             
     except Exception as e:
-        print(f"PDF 분석 오류: {str(e)}")
+        print(f"PDF 폴백 분석 오류: {str(e)}")
         return ""
 
 
