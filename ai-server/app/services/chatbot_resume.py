@@ -346,7 +346,20 @@ def modify_cover_letter(cover_letter_text: str, modification_request: str) -> st
 
 사용자 요청: {modification_request}
 
-요청사항을 정확히 반영하여 자기소개서를 수정해주세요. 전체적인 문체와 톤은 유지하되, 요청된 부분만 수정하세요."""
+**수정 가이드라인:**
+1. 사용자가 "마지막에 ~로 끝내줘" 또는 "~로 끝내주세요"라고 하면:
+   - 자기소개서의 마지막 문장을 사용자가 요청한 내용으로 정확히 교체하세요
+   - "감사합니다."는 항상 맨 마지막에 유지하세요
+
+2. 사용자가 "~를 추가해줘"라고 하면:
+   - 적절한 위치에 해당 내용을 자연스럽게 추가하세요
+
+3. 사용자가 "~를 바꿔줘" 또는 "~를 수정해줘"라고 하면:
+   - 해당 부분을 찾아서 정확히 교체하세요
+
+4. 전체적인 문체와 톤은 유지하되, 요청된 부분은 **반드시** 정확히 반영하세요.
+
+수정된 자기소개서 전문만 출력하세요. 설명이나 추가 코멘트는 불필요합니다."""
 
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -644,13 +657,18 @@ def process_cover_letter_chatbot(
         elif current_state == "style_selection":
             # 문체 선택 단계
             if user_message:
-                # 문체 저장
+                # 문체 저장하고 바로 초안 생성
                 writing_style = user_message
+                
+                # 초안 즉시 생성
+                draft = generate_cover_letter_draft(cover_letter_data, writing_style or "자연스럽고 전문적인")
+                
                 return {
-                    "message": "알겠습니다\n\nAI가 초안을 생성 중입니다...",
+                    "message": f"/ AI 초안 미리보기\n\n\"{draft}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
                     "updated_data": cover_letter_data,
-                    "status": "generating_draft",
-                    "next_state": "draft_preview",
+                    "status": "draft_preview",
+                    "next_state": "draft_revision",
+                    "draft_cover_letter": draft,
                     "writing_style": writing_style
                 }
             else:
@@ -667,7 +685,7 @@ def process_cover_letter_chatbot(
                 # 초안 생성
                 draft = generate_cover_letter_draft(cover_letter_data, writing_style or "자연스럽고 전문적인")
                 return {
-                    "message": f"/ AI 초안 미리보기\n\n\"{draft}\"",
+                    "message": f"/ AI 초안 미리보기\n\n\"{draft}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
                     "updated_data": cover_letter_data,
                     "status": "draft_preview",
                     "next_state": "draft_revision",
@@ -677,7 +695,7 @@ def process_cover_letter_chatbot(
             else:
                 # 이미 초안이 있음
                 return {
-                    "message": f"/ AI 초안 미리보기\n\n\"{draft_cover_letter}\"",
+                    "message": f"/ AI 초안 미리보기\n\n\"{draft_cover_letter}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
                     "updated_data": cover_letter_data,
                     "status": "draft_preview",
                     "next_state": "draft_revision",
