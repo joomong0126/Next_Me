@@ -262,78 +262,78 @@ export const projects: ProjectsAPI = {
     // ID를 문자열로 변환 (Supabase 테이블의 id는 UUID 타입)
     const projectId = typeof id === 'string' ? id : id.toString();
 
-    // Supabase에서 프로젝트 업데이트
-    // maybeSingle()을 사용하여 업데이트된 행이 없어도 에러가 발생하지 않도록 함
-    const { data: updatedData, error } = await sb
+    // Supabase에서 프로젝트 업데이트 (표현 반환을 요청하지 않음 – 406 회피)
+    const { error: updateError } = await sb
       .from('projects')
       .update(updateData)
       .eq('id', projectId)
-      .eq('owner_id', user.id) // 사용자 소유 확인
-      .select()
+      .eq('owner_id', user.id);
+
+    if (updateError) {
+      // 일부 환경에서 RLS/권한 정책으로 인해 representation을 반환할 수 없어 406이 날 수 있음
+      // 위에서 representation을 요청하지 않았기 때문에 대부분의 406은 피하지만,
+      // 혹시 모를 에러는 메시지로 전달
+      console.error('[supabase/projects] Error updating project:', updateError);
+      throw new Error(`프로젝트를 저장하는 중 오류가 발생했습니다: ${updateError.message}`);
+    }
+
+    // 업데이트 이후 최신 데이터 조회 시도
+    const { data: fetched, error: fetchError } = await sb
+      .from('projects')
+      .select('*')
+      .eq('id', projectId)
+      .eq('owner_id', user.id)
       .maybeSingle();
 
-    if (error) {
-      console.error('[supabase/projects] Error updating project:', error);
-      throw new Error(`프로젝트를 저장하는 중 오류가 발생했습니다: ${error.message}`);
-    }
-
-    if (!updatedData) {
-      // 업데이트된 데이터가 없으면 프로젝트가 존재하지 않거나 소유자가 아닐 수 있음
-      // 다시 조회하여 확인
-      const { data: checkData, error: checkError } = await sb
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .eq('owner_id', user.id)
-        .maybeSingle();
-      
-      if (checkError) {
-        console.error('[supabase/projects] Error checking project:', checkError);
-        throw new Error(`프로젝트 확인 중 오류가 발생했습니다: ${checkError.message}`);
-      }
-      
-      if (!checkData) {
-        throw new Error('프로젝트를 찾을 수 없거나 접근 권한이 없습니다.');
-      }
-      
-      // 조회한 데이터를 사용
-      const record: ProjectRecord = {
-        id: checkData.id,
-        title: checkData.title || '',
-        category: checkData.category || '',
-        tags: Array.isArray(checkData.tags) ? checkData.tags : (checkData.tags ? JSON.parse(checkData.tags) : []),
-        summary: checkData.summary || '',
-        type: (checkData.type as ProjectRecordType) || 'project',
-        sourceUrl: checkData.source_url || checkData.sourceUrl || null,
-        period: checkData.period || null,
-        startDate: checkData.start_date || checkData.startDate || null,
-        endDate: checkData.end_date || checkData.endDate || null,
-        role: checkData.roles || checkData.role || null,
-        achievements: checkData.achievements || null,
-        tools: Array.isArray(checkData.tools) ? checkData.tools.join(', ') : (checkData.tools || null),
-        description: checkData.description || null,
+    if (fetchError) {
+      // 선택 권한이 제한된 경우 등 – 최소한 성공 로그만 남기고 입력 데이터 기반으로 응답 구성
+      console.warn('[supabase/projects] Warning: could not fetch updated row after update:', fetchError);
+      const fallback: ProjectRecord = {
+        id: typeof id === 'string' ? id : Number(id),
+        title: updateData.title ?? '',
+        category: updateData.category ?? '',
+        tags: Array.isArray(updateData.tags)
+          ? updateData.tags
+          : updateData.tags
+          ? (typeof updateData.tags === 'string'
+              ? [updateData.tags]
+              : [])
+          : [],
+        summary: updateData.summary ?? '',
+        type: 'project',
+        sourceUrl: null,
+        period: null,
+        startDate: updateData.start_date ?? null,
+        endDate: updateData.end_date ?? null,
+        role: Array.isArray(updateData.roles) ? updateData.roles.join(', ') : (updateData.roles ?? null),
+        achievements: Array.isArray(updateData.achievements) ? updateData.achievements.join(', ') : (updateData.achievements ?? null),
+        tools: Array.isArray(updateData.tools) ? updateData.tools.join(', ') : (updateData.tools ?? null),
+        description: updateData.description ?? null,
       };
-      
-      console.info(`[supabase/projects] Updated project ${id} for user ${user.id} (retrieved after update)`);
-      return record;
+      console.info(`[supabase/projects] Updated project ${id} for user ${user.id} (fallback without fetch)`);
+      return fallback;
     }
 
-    // ProjectRecord 형식으로 변환
+    if (!fetched) {
+      throw new Error('프로젝트를 찾을 수 없거나 접근 권한이 없습니다.');
+    }
+
+    // 조회한 데이터를 사용
     const record: ProjectRecord = {
-      id: updatedData.id,
-      title: updatedData.title || '',
-      category: updatedData.category || '',
-      tags: Array.isArray(updatedData.tags) ? updatedData.tags : (updatedData.tags ? JSON.parse(updatedData.tags) : []),
-      summary: updatedData.summary || '',
-      type: (updatedData.type as ProjectRecordType) || 'project',
-      sourceUrl: updatedData.source_url || updatedData.sourceUrl || null,
-      period: updatedData.period || null, // period는 로컬에서만 사용
-      startDate: updatedData.start_date || updatedData.startDate || null,
-      endDate: updatedData.end_date || updatedData.endDate || null,
-      role: updatedData.roles || updatedData.role || null, // roles (복수형) 컬럼에서 읽기
-      achievements: updatedData.achievements || null,
-      tools: Array.isArray(updatedData.tools) ? updatedData.tools.join(', ') : (updatedData.tools || null), // 배열을 문자열로 변환
-      description: updatedData.description || null,
+      id: fetched.id,
+      title: fetched.title || '',
+      category: fetched.category || '',
+      tags: Array.isArray(fetched.tags) ? fetched.tags : (fetched.tags ? JSON.parse(fetched.tags) : []),
+      summary: fetched.summary || '',
+      type: (fetched.type as ProjectRecordType) || 'project',
+      sourceUrl: fetched.source_url || fetched.sourceUrl || null,
+      period: fetched.period || null,
+      startDate: fetched.start_date || fetched.startDate || null,
+      endDate: fetched.end_date || fetched.endDate || null,
+      role: fetched.roles || fetched.role || null,
+      achievements: fetched.achievements || null,
+      tools: Array.isArray(fetched.tools) ? fetched.tools.join(', ') : (fetched.tools || null),
+      description: fetched.description || null,
     };
 
     console.info(`[supabase/projects] Updated project ${id} for user ${user.id}`);
