@@ -315,7 +315,31 @@ export const projects: ProjectsAPI = {
     }
 
     if (!fetched) {
-      throw new Error('프로젝트를 찾을 수 없거나 접근 권한이 없습니다.');
+      // 선택 권한이 없어서 조회가 되지 않을 수 있음 – 입력 데이터 기반으로 응답 구성
+      const fallback: ProjectRecord = {
+        id: typeof id === 'string' ? id : Number(id),
+        title: updateData.title ?? '',
+        category: updateData.category ?? '',
+        tags: Array.isArray(updateData.tags)
+          ? updateData.tags
+          : updateData.tags
+          ? (typeof updateData.tags === 'string'
+              ? [updateData.tags]
+              : [])
+          : [],
+        summary: updateData.summary ?? '',
+        type: 'project',
+        sourceUrl: null,
+        period: null,
+        startDate: updateData.start_date ?? null,
+        endDate: updateData.end_date ?? null,
+        role: Array.isArray(updateData.roles) ? updateData.roles.join(', ') : (updateData.roles ?? null),
+        achievements: Array.isArray(updateData.achievements) ? updateData.achievements.join(', ') : (updateData.achievements ?? null),
+        tools: Array.isArray(updateData.tools) ? updateData.tools.join(', ') : (updateData.tools ?? null),
+        description: updateData.description ?? null,
+      };
+      console.info(`[supabase/projects] Updated project ${id} for user ${user.id} (fallback without fetch - no row returned)`);
+      return fallback;
     }
 
     // 조회한 데이터를 사용

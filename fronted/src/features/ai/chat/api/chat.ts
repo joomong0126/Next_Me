@@ -389,10 +389,14 @@ export async function invokeOrganizeSummarizeFunction(params: {
   });
 
   try {
+    const session = await supabaseClient.auth.getSession();
+    const token = session?.data?.session?.access_token;
+
     const response = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });
@@ -438,7 +442,6 @@ export async function invokeOrganizeRefineFunction(params: {
   answer?: string;
   state?: 'start';
 }): Promise<OrganizeRefineResponse> {
-  // 인증 헤더 없이 진행 (임시)
   const functionName = resolveOrganizeRefineFunctionName();
   
   // 개발 환경에서는 Vite 프록시를 사용하여 CORS 문제 우회
@@ -520,10 +523,14 @@ export async function invokeOrganizeRefineFunction(params: {
       bodyKeys: Object.keys(body),
     });
 
+    const session = await supabaseClient.auth.getSession();
+    const token = session?.data?.session?.access_token;
+
     const response = await fetch(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify(body),
     });

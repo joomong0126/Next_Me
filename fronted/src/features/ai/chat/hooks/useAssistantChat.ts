@@ -12,6 +12,7 @@ import {
   invokeOrganizeRefineFunction,
   type OrganizeRefineResponse,
 } from '../api/chat';
+import { readToken } from '@/shared/api/tokenStorage';
 
 const DEFAULT_WELCOME_MESSAGE =
   '안녕하세요! 저는 Nexter, 당신의 커리어 성장 파트너입니다.\n업로드한 프로젝트 속에서 당신의 강점과 잠재력을 발견하고,\n커리어 방향과 자기소개서까지 함께 정리해드릴게요!\n왼쪽에서 프로젝트를 선택하거나 새 프로젝트를 추가해보세요!';
@@ -453,6 +454,8 @@ export function useAssistantChat({
             // DONE 단계: 프로젝트 분석 완료 후 편집창 열기
             setProjectToEdit(updatedProject);
             setIsEditDialogOpen(true);
+            // 편집창이 이미 열린 상태에서 자동 저장 훅이 중복으로 열지 않도록 플래그 설정
+            autoSaveTriggeredProjectIdsRef.current.add(currentProjectId);
             toast.success('프로젝트 분석이 완료되었습니다! 편집창에서 확인해주세요.');
           }
         } else if (response.message || response.content) {
@@ -516,18 +519,40 @@ export function useAssistantChat({
           currentProjectId,
           organizingProjectIds,
         });
-        toast.error(errorMessage);
-        setMessages((previous) =>
-          previous.map((message) =>
-            message.id === aiTempId
-              ? {
-                  ...message,
-                  content: `죄송해요, 응답을 생성하지 못했습니다.\n\n오류: ${errorMessage}`,
-                  timestamp: new Date(),
-                }
-              : message,
-          ),
-        );
+        // 502 또는 Edge Function 타임아웃/비응답 시에는 친절한 마무리 메시지로 대체
+        const isGatewayTimeout =
+          /(^|\D)502(\D|$)/.test(errorMessage) ||
+          /Application failed to respond/i.test(errorMessage) ||
+          /Failed to fetch/i.test(errorMessage);
+
+        if (isGatewayTimeout) {
+          const fallbackClosing = buildOrganizeClosingMessage();
+          toast.info('서버 응답이 지연되어 로컬에서 마무리 메시지를 표시합니다.');
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === aiTempId
+                ? {
+                    ...message,
+                    content: fallbackClosing,
+                    timestamp: new Date(),
+                  }
+                : message,
+            ),
+          );
+        } else {
+          toast.error(errorMessage);
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === aiTempId
+                ? {
+                    ...message,
+                    content: `죄송해요, 응답을 생성하지 못했습니다.\n\n오류: ${errorMessage}`,
+                    timestamp: new Date(),
+                  }
+                : message,
+            ),
+          );
+        }
       } finally {
         setIsGenerating(false);
       }
@@ -560,9 +585,19 @@ export function useAssistantChat({
       // 커스텀 엔드포인트 또는 기본 엔드포인트 사용
       const endpoint = resolveChatEndpoint(chatEndpoint);
 
+      const session = await supabaseClient.auth.getSession();
+      const useLocalFallback =
+        import.meta.env.DEV === true ||
+        String((import.meta as any)?.env?.VITE_USE_MOCK).trim().toLowerCase() === 'true';
+      const token =
+        session?.data?.session?.access_token ?? (useLocalFallback ? readToken() ?? undefined : undefined);
+
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           projectId: currentProjectId,
           userRole,
@@ -572,7 +607,12 @@ export function useAssistantChat({
       });
 
       if (!response.ok || !response.body) {
-        throw new Error('AI 서버 응답이 올바르지 않습니다.');
+        // 오류 본문을 최대한 사용자에게 보여주어 원인 파악을 돕는다
+        const errorText = await response.text().catch(() => '');
+        const friendly =
+          errorText?.trim() ||
+          `AI 서버 응답이 올바르지 않습니다. (HTTP ${response.status} ${response.statusText})`;
+        throw new Error(friendly);
       }
 
       const reader = response.body.getReader();
@@ -634,13 +674,15 @@ export function useAssistantChat({
       // 메시지는 로컬 상태로만 관리 (데이터베이스 저장 안함)
     } catch (error) {
       console.error('Failed to send message', error);
-      toast.error('메시지를 전송하지 못했습니다.');
+      const errMessage =
+        error instanceof Error ? error.message : '메시지를 전송하지 못했습니다.';
+      toast.error(errMessage);
       setMessages((previous) =>
         previous.map((message) =>
           message.id === aiTempId
             ? {
                 ...message,
-                content: '죄송해요, 응답을 생성하지 못했습니다.',
+                content: errMessage || '죄송해요, 응답을 생성하지 못했습니다.',
                 timestamp: new Date(),
               }
             : message,

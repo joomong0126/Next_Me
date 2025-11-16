@@ -1,4 +1,3 @@
-
   import { defineConfig } from 'vite';
   import react from '@vitejs/plugin-react-swc';
   import path from 'path';
@@ -58,7 +57,8 @@
       open: true,
       proxy: {
         '/api/supabase-functions': {
-          target: 'https://sqxojkaavbfmwhcdlwqt.supabase.co',
+          // Use Supabase URL from environment (loaded by Vite) instead of a hardcoded project URL
+          target: process.env.VITE_SUPABASE_URL || 'https://sqxojkaavbfmwhcdlwqt.supabase.co',
           changeOrigin: true,
           secure: true,
           rewrite: (path) => path.replace(/^\/api\/supabase-functions/, '/functions/v1'),

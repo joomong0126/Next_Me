@@ -199,6 +199,16 @@ export function AIAssistant({
     };
 
     try {
+      // 인증 확인: Supabase 어댑터 사용 시 세션이 없으면 AuthSessionMissingError가 발생함
+      // 사전에 로그인 여부를 확인하여 UX를 개선
+      try {
+        await api.auth.me();
+      } catch (authError) {
+        console.warn('[AIAssistant] Project creation blocked: user not authenticated', authError);
+        toast.error('로그인이 필요합니다. 로그인 후 다시 시도해주세요.');
+        return;
+      }
+
       // Supabase의 text[] 타입 컬럼에 맞게 배열로 정규화
       // roles, tools, tags는 항상 string[] 형태로 전송되어야 함
       const tagsArray = normalizeToArray(data.tags);

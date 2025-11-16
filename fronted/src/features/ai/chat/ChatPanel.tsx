@@ -1,4 +1,4 @@
-import { ChangeEvent, KeyboardEvent } from 'react';
+import { ChangeEvent, KeyboardEvent, useEffect, useRef } from 'react';
 
 import type { Project } from '@/entities/project';
 import type { AssistantMessage } from './types';
@@ -35,6 +35,9 @@ export function ChatPanel({
   onResetChat,
   onOpenProjectUpload,
 }: ChatPanelProps) {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const bottomAnchorRef = useRef<HTMLDivElement | null>(null);
+
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -42,8 +45,24 @@ export function ChatPanel({
     }
   };
 
+  // 새 메시지가 추가되거나 생성 상태가 바뀔 때, 최신 메시지가 보이도록 스크롤을 바닥으로 이동
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    // 즉시 스크롤
+    container.scrollTop = container.scrollHeight;
+    // 앵커가 있을 경우 보장 스크롤
+    bottomAnchorRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length, isGenerating]);
+
+  const computeBubbleWidthClass = (role: 'ai' | 'user') => {
+    // 콘텐츠 길이에 따라 자동으로 늘어나되, 역할별 최대 폭만 제한
+    // 사용자: 읽기 편하게 90%까지, AI: 80%까지
+    return role === 'user' ? 'max-w-[90%]' : 'max-w-[80%]';
+  };
+
   return (
-    <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col min-h-0 h-full">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -61,7 +80,7 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
         {messages.map((message, index) => {
           const timestamp = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
 
@@ -80,7 +99,7 @@ export function ChatPanel({
               <div className={`flex-1 ${message.role === 'user' ? 'flex justify-end' : ''}`}>
                 <div>
                   <div
-                    className={`inline-block max-w-[80%] min-w-max rounded-2xl px-4 py-3 ${
+                    className={`inline-block w-fit ${computeBubbleWidthClass(message.role as 'ai' | 'user')} min-w-[80px] break-words rounded-2xl px-4 py-3 ${
                       message.role === 'ai'
                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
                         : 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
@@ -162,6 +181,7 @@ export function ChatPanel({
             </div>
           </div>
         )}
+        <div ref={bottomAnchorRef} />
       </div>
 
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">

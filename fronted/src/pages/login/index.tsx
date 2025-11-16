@@ -2,6 +2,16 @@ import { FormEvent, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/shared/ui/shadcn/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/shared/ui/shadcn/alert-dialog';
 import { Input } from '@/shared/ui/shadcn/input';
 import { Label } from '@/shared/ui/shadcn/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/shadcn/card';
@@ -18,6 +28,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('1234');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deletionProfile, setDeletionProfile] = useState<{ email: string; name?: string } | null>(null);
+  const [isLookupLoading, setIsLookupLoading] = useState(false);
+  const [dialogEmail, setDialogEmail] = useState('');
+  const [dialogPassword, setDialogPassword] = useState('');
 
   const handleSignup = (event: React.MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
@@ -64,6 +79,64 @@ export default function LoginPage() {
       setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAccount = async (event: React.MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    if (isLoading) return;
+
+    setError(null);
+    setDeletionProfile(null);
+    setDialogEmail(email ?? '');
+    setDialogPassword(password ?? '');
+    setIsDeleteDialogOpen(true);
+  };
+
+  const lookupDeleteTarget = async () => {
+    if (isLookupLoading) return;
+    setError(null);
+    setIsLookupLoading(true);
+    try {
+      // 팝업 내 입력값으로 인증 확인
+      await api.auth.login({ email: dialogEmail, password: dialogPassword });
+      // 인증 성공 시 즉시 탈퇴 처리
+      try {
+        await api.auth.deleteAccount();
+      } catch (deleteErr) {
+        const message =
+          deleteErr instanceof Error
+            ? deleteErr.message
+            : '계정 삭제 요청이 처리되었습니다.';
+        alert(message);
+      }
+      setIsDeleteDialogOpen(false);
+      setDeletionProfile(null);
+      navigate('/intro', { replace: true });
+    } catch (err) {
+      setDeletionProfile(null);
+      setError(err instanceof Error ? err.message : '아이디 또는 비밀번호가 올바르지 않습니다.');
+    } finally {
+      setIsLookupLoading(false);
+    }
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    try {
+      await api.auth.deleteAccount();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : '계정 삭제 요청이 처리되었습니다. 잠시 후 다시 시도하거나, 문제가 지속되면 문의해주세요.';
+      alert(message);
+    } finally {
+      setIsLoading(false);
+      setIsDeleteDialogOpen(false);
+      setDeletionProfile(null);
+      navigate('/intro', { replace: true });
     }
   };
 
@@ -194,13 +267,67 @@ export default function LoginPage() {
             Google로 계속하기
           </Button>
 
-          <div className="text-center">
+          <div className="flex items-center justify-between text-sm">
             <a href="#" className="text-gray-900 hover:underline" onClick={handleSignup}>
               회원가입하기
+            </a>
+            <a
+              href="#"
+              className="text-gray-500 hover:text-gray-900 hover:underline"
+              onClick={handleDeleteAccount}
+            >
+              탈퇴하기
             </a>
           </div>
         </CardContent>
       </Card>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>계정 삭제 확인</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-3">
+                <div>탈퇴를 진행하려면 계정 정보를 입력하고 조회를 눌러주세요. 일치하면 즉시 탈퇴됩니다.</div>
+                <div className="space-y-2">
+                  <Label htmlFor="delete-email">이메일</Label>
+                  <Input
+                    id="delete-email"
+                    type="email"
+                    value={dialogEmail}
+                    onChange={(e) => setDialogEmail(e.target.value)}
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="delete-password">비밀번호</Label>
+                  <Input
+                    id="delete-password"
+                    type="password"
+                    value={dialogPassword}
+                    onChange={(e) => setDialogPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
+                {error ? <p className="text-sm text-red-500">{error}</p> : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading} onClick={() => setIsDeleteDialogOpen(false)}>
+              취소
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isLookupLoading || !dialogEmail || !dialogPassword}
+              className="min-w-20"
+              onClick={lookupDeleteTarget}
+            >
+              {isLookupLoading ? '조회 중...' : '조회'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

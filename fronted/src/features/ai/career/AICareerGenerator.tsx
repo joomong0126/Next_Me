@@ -116,7 +116,7 @@ export function AICareerGenerator({
       />
 
       {/* Right: Chat Panel with Welcome Section */}
-      <div className="flex-1 flex flex-col gap-4">
+      <div className="flex-1 flex flex-col gap-4 min-h-0 h-full">
         {/* Welcome Section - shown when no messages or only welcome message */}
         {messages.length <= 1 && (
           <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center p-8">
@@ -136,7 +136,7 @@ export function AICareerGenerator({
         )}
 
         {/* Chat Panel */}
-        <div className={messages.length <= 1 ? 'hidden' : 'flex-1'}>
+        <div className={messages.length <= 1 ? 'hidden' : 'flex-1 min-h-0 h-full'}>
           <ChatPanel
             messages={messages}
             selectedProject={null}

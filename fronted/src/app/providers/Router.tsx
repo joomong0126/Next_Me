@@ -12,6 +12,7 @@ import GoalsPage from '@/pages/app/goals';
 import SettingsPage from '@/pages/app/settings';
 import CareerGeneratorPage from '@/pages/app/career-generator';
 import { RequireAuth } from '@/features/auth/components/RequireAuth';
+import AuthCallbackPage from '@/pages/auth/callback';
 
 export function AppRouter() {
   const router = createBrowserRouter([
@@ -21,6 +22,8 @@ export function AppRouter() {
     { path: '/signup', element: <SignupPage /> },
     { path: '/signup/details', element: <SignupDetailsPage /> },
     { path: '/onboarding', element: <OnboardingPage /> },
+    // OAuth 콜백 라우트 (Supabase Google 로그인 처리)
+    { path: '/auth/callback', element: <AuthCallbackPage /> },
     {
       path: '/app',
       element: (
