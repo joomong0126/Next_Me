@@ -90,7 +90,8 @@ def analyze_image(file_path: str) -> str:
                 }
             ],
             max_tokens=4000,
-            temperature=0.2
+            temperature=0.2,
+            timeout=25.0
         )
         
         return response.choices[0].message.content
@@ -150,7 +151,8 @@ def analyze_pdf(file_path: str) -> str:
                 }
             ],
             max_tokens=4000,
-            temperature=0.2
+            temperature=0.2,
+            timeout=25.0
         )
         
         return response.choices[0].message.content
@@ -337,7 +339,8 @@ def analyze_text_with_llm(text: str) -> str:
                 {"role": "user", "content": prompt}
             ],
             max_tokens=2000,
-            temperature=0
+            temperature=0,
+            timeout=25.0
         )
         
         return response.choices[0].message.content
@@ -380,7 +383,8 @@ def extract_metadata_from_analysis(analysis_text: str, source_summary: str = Non
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0
+            temperature=0,
+            timeout=25.0
         )
         
         result = json.loads(response.choices[0].message.content)
@@ -389,13 +393,41 @@ def extract_metadata_from_analysis(analysis_text: str, source_summary: str = Non
         if source_summary and "project" in result:
             result["project"]["summary"] = source_summary
         
+        # title이 None이면 무조건 임의의 값 생성
+        if "project" in result:
+            project = result["project"]
+            
+            if not project.get("title"):
+                category = project.get("category")
+                tools = project.get("tools", [])
+                
+                if category and tools:
+                    # "웹 개발 프로젝트 (React, Node.js)"
+                    project["title"] = f"{category} 프로젝트 ({', '.join(tools[:2])})"
+                elif category:
+                    # "웹 개발 프로젝트"
+                    project["title"] = f"{category} 프로젝트"
+                elif tools:
+                    # "React 프로젝트"
+                    project["title"] = f"{tools[0]} 프로젝트"
+                else:
+                    summary = project.get("summary", "")
+                    if summary and "업로드됨" in summary:
+                        # 파일명에서 "업로드됨" 제거
+                        title_from_summary = summary.replace("업로드됨", "").strip()
+                        project["title"] = title_from_summary if title_from_summary else "프로젝트 활동"
+                    else:
+                        # 정말 아무것도 없으면 날짜 기반
+                        from datetime import datetime
+                        project["title"] = f"프로젝트 활동 ({datetime.now().strftime('%Y-%m-%d')})"
+        
         return result
         
     except json.JSONDecodeError:
         # JSON 파싱 실패 시 기본 구조 반환
         return {
             "project": {
-                "title": None,
+                "title": "분석 실패 - 재시도 필요",
                 "category": None,
                 "summary": source_summary,
                 "tags": [],
@@ -410,7 +442,7 @@ def extract_metadata_from_analysis(analysis_text: str, source_summary: str = Non
         print(f"메타데이터 추출 오류: {str(e)}")
         return {
             "project": {
-                "title": None,
+                "title": "분석 오류 발생",
                 "category": None,
                 "summary": source_summary,
                 "tags": [],
@@ -481,7 +513,7 @@ def extract_project_metadata(file_path: str, source_name: str = None) -> Dict[st
     if file_type == "unknown":
         return {
             "project": {
-                "title": None,
+                "title": "지원하지 않는 파일 형식",
                 "category": None,
                 "summary": source_summary,
                 "tags": [],
@@ -514,7 +546,7 @@ def extract_project_metadata(file_path: str, source_name: str = None) -> Dict[st
     if not analysis_text:
         return {
             "project": {
-                "title": None,
+                "title": "파일 분석 실패",
                 "category": None,
                 "summary": source_summary,
                 "tags": [],
@@ -579,7 +611,7 @@ def analyze_project_from_formdata(
             if not analysis_text:
                 return {
                     "project": {
-                        "title": None,
+                        "title": "텍스트 분석 실패",
                         "category": None,
                         "summary": source_summary,
                         "tags": [],
@@ -600,7 +632,7 @@ def analyze_project_from_formdata(
             # 입력이 없는 경우
             return {
                 "project": {
-                    "title": None,
+                    "title": "입력 데이터 없음",
                     "category": None,
                     "summary": None,
                     "tags": [],
@@ -619,7 +651,7 @@ def analyze_project_from_formdata(
         traceback.print_exc()
         return {
             "project": {
-                "title": None,
+                "title": "분석 오류 발생",
                 "category": None,
                 "summary": None,
                 "tags": [],

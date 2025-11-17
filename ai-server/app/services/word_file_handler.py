@@ -62,13 +62,10 @@ def create_word_file(cover_letter_text: str, cover_letter_data: Dict[str, Any], 
         # 본문 추가
         paragraphs = cover_letter_text.split('\n')
         for para in paragraphs:
-            if para.strip():
-                p = doc.add_paragraph()
-                run = p.add_run(para.strip())
-                run.font.name = '맑은 고딕'
-                run._element.rPr.rFonts.set(qn('w:eastAsia'), '맑은 고딕')
-            else:
-                doc.add_paragraph()  # 빈 줄
+            p = doc.add_paragraph()
+            run = p.add_run(para)  # strip() 제거! 공백 유지
+            run.font.name = '맑은 고딕'
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), '맑은 고딕')
         
         # 문서 저장
         doc.save(str(filepath))

@@ -306,10 +306,20 @@ def generate_cover_letter_draft(cover_letter_data: Dict[str, Any], writing_style
     try:
         data_str = json.dumps(cover_letter_data, ensure_ascii=False, indent=2)
         
+        # 프로젝트가 여러 개인지 확인
+        projects = cover_letter_data.get("projects", [])
+        project_instruction = ""
+        
+        if len(projects) > 1:
+            project_instruction = "\n\n**중요: 데이터에 포함된 프로젝트들을 각각 구분해서 자기소개서에 반영하세요. 프로젝트가 여러 개인 경우, 각 프로젝트를 별도 문단으로 작성하거나 구분해서 설명해주세요.**"
+        elif len(projects) == 1:
+            project_instruction = "\n\n**중요: 데이터에 포함된 프로젝트 정보를 활용하여 자기소개서를 작성하세요.**"
+        
         prompt = f"""다음 정보를 바탕으로 {writing_style} 문체로 자기소개서 초안을 작성해주세요.
 
 수집된 정보:
 {data_str}
+{project_instruction}
 
 자기소개서는 다음을 포함해야 합니다:
 1. 지원 동기 및 직무에 대한 관심
@@ -706,8 +716,42 @@ def process_cover_letter_chatbot(
         elif current_state == "draft_revision":
             # 초안 수정 단계
             if user_message:
-                if is_confirmation(user_message) or "좋아" in user_message or "좋아요" in user_message:
-                    # 수정 없이 확인
+                # 이전 AI 메시지 확인
+                last_ai_message = ""
+                if conversation_history:
+                    for msg in reversed(conversation_history):
+                        if msg.get("role") == "assistant":
+                            last_ai_message = msg.get("content", "")
+                            break
+                
+                # "이게 맞나요?" 메시지 이후 "네" 응답이면 바로 완료
+                if ("이게 맞나요" in last_ai_message) and (is_confirmation(user_message) or "네" in user_message or "맞아요" in user_message):
+                    # 바로 완료 상태로
+                    return {
+                        "message": "완료 ✅\n\nWord 파일을 생성 중입니다...",
+                        "updated_data": cover_letter_data,
+                        "status": "completed",
+                        "next_state": "completed",
+                        "draft_cover_letter": draft_cover_letter,
+                        "writing_style": writing_style
+                    }
+                
+                # "수정" 키워드가 있으면 수정 처리
+                elif "수정" in user_message.lower() and ("이게 맞나요" in last_ai_message):
+                    # 수정 요청
+                    modified_draft = modify_cover_letter(draft_cover_letter, user_message)
+                    return {
+                        "message": f"수정 완료\n\n{modified_draft}\n\n이게 맞나요? 맞다면 네 라고 말해주시고 다시 수정을 원하면 수정이라고 말해주세요",
+                        "updated_data": cover_letter_data,
+                        "status": "draft_revision",
+                        "next_state": "draft_revision",
+                        "draft_cover_letter": modified_draft,
+                        "writing_style": writing_style
+                    }
+                
+                # 일반 확인 (초안에서 수정 없이 확인)
+                elif is_confirmation(user_message) or "좋아" in user_message or "좋아요" in user_message:
+                    # 수정 없이 확인 → final_confirmation
                     return {
                         "message": "최종 자기소개서를 확인하시겠어요?",
                         "updated_data": cover_letter_data,
@@ -716,14 +760,15 @@ def process_cover_letter_chatbot(
                         "draft_cover_letter": draft_cover_letter,
                         "writing_style": writing_style
                     }
+                
                 else:
                     # 수정 요청
                     modified_draft = modify_cover_letter(draft_cover_letter, user_message)
                     return {
-                        "message": "수정 완료\n\n최종 자기소개서를 확인하시겠어요?",
+                        "message": f"수정 완료\n\n{modified_draft}\n\n이게 맞나요? 맞다면 네 라고 말해주시고 다시 수정을 원하면 수정이라고 말해주세요",
                         "updated_data": cover_letter_data,
-                        "status": "final_confirmation",
-                        "next_state": "final_confirmation",
+                        "status": "draft_revision",
+                        "next_state": "draft_revision",
                         "draft_cover_letter": modified_draft,
                         "writing_style": writing_style
                     }

@@ -85,7 +85,8 @@ def merge_projects_to_cover_letter_data(projects: List[Project]) -> Dict[str, An
         "motivation": None,
         "strengths": [],
         "personality": None,
-        "future_plans": None
+        "future_plans": None,
+        "projects": []  # 각 프로젝트 정보를 배열로 저장
     }
     
     all_skills = set()
@@ -93,7 +94,22 @@ def merge_projects_to_cover_letter_data(projects: List[Project]) -> Dict[str, An
     all_roles = []
     experience_parts = []
     
+    # 각 프로젝트를 개별적으로 저장
     for project in projects:
+        project_dict = {
+            "title": project.title,
+            "category": project.category,
+            "tags": project.tags or [],
+            "summary": project.summary,
+            "start_date": project.start_date,
+            "end_date": project.end_date,
+            "roles": project.roles or [],
+            "achievements": project.achievements or [],
+            "tools": project.tools or [],
+            "description": project.description
+        }
+        cover_letter_data["projects"].append(project_dict)
+        
         # tools → skills 통합
         if project.tools:
             for tool in project.tools:
@@ -187,7 +203,7 @@ async def projects_assistant(request: Request):
             
             # 응답 생성
             return {
-                "message": result.get("message", "안녕하세요! 자기소개서 작성을 도와드리겠습니다.")
+                "message": "안녕하세요! 저는 자기소개서 작성을 도와주는 넥스터입니다. 자기소개서 작성을 원하시나요?"
             }
         
         # 대화 진행 요청 처리
