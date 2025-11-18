@@ -552,7 +552,7 @@ def process_project_refine_chatbot(
     if is_completion_request(user_message):
         final_summary = format_metadata_summary(metadata)
         return {
-            "message": f"지금까지 정리한 내용\n\n{final_summary}\n\n이렇게 업데이트 해도 될까요? (맞으면 '네' 또는 '완료', 수정이 필요하면 내용을 알려주세요)",
+            "message": f"지금까지 정리한 내용\n\n{final_summary}\n\n이렇게 업데이트 해도 될까요? (맞으면 '네', 수정이 필요하면 내용을 알려주세요)",
             "project": updated_project if 'updated_project' in locals() else project
         }
     

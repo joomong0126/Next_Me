@@ -674,7 +674,7 @@ def process_cover_letter_chatbot(
                 draft = generate_cover_letter_draft(cover_letter_data, writing_style or "자연스럽고 전문적인")
                 
                 return {
-                    "message": f"/ AI 초안 미리보기\n\n\"{draft}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
+                    "message": f"AI 초안 미리보기 ✅\n\n\"{draft}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
                     "updated_data": cover_letter_data,
                     "status": "draft_preview",
                     "next_state": "draft_revision",
@@ -695,7 +695,7 @@ def process_cover_letter_chatbot(
                 # 초안 생성
                 draft = generate_cover_letter_draft(cover_letter_data, writing_style or "자연스럽고 전문적인")
                 return {
-                    "message": f"/ AI 초안 미리보기\n\n\"{draft}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
+                    "message": f"AI 초안 미리보기 ✅\n\n\"{draft}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
                     "updated_data": cover_letter_data,
                     "status": "draft_preview",
                     "next_state": "draft_revision",
@@ -705,7 +705,7 @@ def process_cover_letter_chatbot(
             else:
                 # 이미 초안이 있음
                 return {
-                    "message": f"/ AI 초안 미리보기\n\n\"{draft_cover_letter}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
+                    "message": f"AI 초안 미리보기 ✅\n\n\"{draft_cover_letter}\"\n\n---\n\n어때요? 마음에 드시나요?\n수정하고 싶거나 추가하고 싶은 내용이 있으면 알려주세요!\n완성했다면 '완료' 또는 '저장'이라고 말씀해주세요.",
                     "updated_data": cover_letter_data,
                     "status": "draft_preview",
                     "next_state": "draft_revision",
@@ -741,7 +741,7 @@ def process_cover_letter_chatbot(
                     # 수정 요청
                     modified_draft = modify_cover_letter(draft_cover_letter, user_message)
                     return {
-                        "message": f"수정 완료\n\n{modified_draft}\n\n이게 맞나요? 맞다면 네 라고 말해주시고 다시 수정을 원하면 수정이라고 말해주세요",
+                        "message": f"수정 완료 ✅\n\n{modified_draft}\n\n이게 맞나요? 맞다면 네 라고 말해주시고 다시 수정을 원하면 수정이라고 말해주세요",
                         "updated_data": cover_letter_data,
                         "status": "draft_revision",
                         "next_state": "draft_revision",
@@ -765,7 +765,7 @@ def process_cover_letter_chatbot(
                     # 수정 요청
                     modified_draft = modify_cover_letter(draft_cover_letter, user_message)
                     return {
-                        "message": f"수정 완료\n\n{modified_draft}\n\n이게 맞나요? 맞다면 네 라고 말해주시고 다시 수정을 원하면 수정이라고 말해주세요",
+                        "message": f"수정 완료 ✅\n\n{modified_draft}\n\n이게 맞나요? 맞다면 네 라고 말해주시고 다시 수정을 원하면 수정이라고 말해주세요",
                         "updated_data": cover_letter_data,
                         "status": "draft_revision",
                         "next_state": "draft_revision",
