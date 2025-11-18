@@ -174,19 +174,6 @@ export function AIAssistant({
     startAnalysis({ kind: 'link', url: normalizedUrl });
   };
 
-  const handleTextUpload = ({ title, content }: { title: string; content: string }) => {
-    if (!title.trim() || !content.trim()) {
-      toast.error('제목과 내용을 입력해주세요');
-      return;
-    }
-
-    startAnalysis({
-      kind: 'text',
-      title: title.trim(),
-      content: content.trim(),
-    });
-  };
-
   const createProjectFromAI = async (data: AIGeneratedData) => {
     const { icon, gradient } = getCategoryIcon(data.category);
 
@@ -460,7 +447,6 @@ export function AIAssistant({
         onOpenChange={setIsUploadDialogOpen}
         onFileSelected={handleFileUpload}
         onLinkSubmit={handleLinkUpload}
-        onTextSubmit={handleTextUpload}
       />
 
       <EditProjectDialog

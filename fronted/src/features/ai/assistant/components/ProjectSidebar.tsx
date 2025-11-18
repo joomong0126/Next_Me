@@ -89,7 +89,7 @@ export function ProjectSidebar({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin-translucent">
         {displayProjects.map((project) => {
           const Icon = project.icon;
           const isSelected = selectedProjectId === project.id;

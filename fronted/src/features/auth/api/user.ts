@@ -8,6 +8,9 @@ export async function fetchCurrentUser(): Promise<User> {
     email: me.email,
     name: me.name,
     headline: me.headline,
+    avatar_url: me.avatar_url,
+    goals: me.goals,
+    phone: me.phone,
   };
 }
 

@@ -7,6 +7,7 @@ import type {
   MeOutput,
   SignupInput,
   SignupOutput,
+  UpdateProfileInput,
 } from '../../contracts';
 import { UnauthorizedError } from '../../errors';
 import { supabaseClient, isMockSupabaseClient } from '../../supabaseClient';
@@ -478,7 +479,6 @@ export const auth: AuthAPI = {
       }
     }
     
-    // TODO: Map to richer profile data when Supabase schema is available.
     const {
       data: { user },
     } = await sb.auth.getUser();
@@ -486,11 +486,33 @@ export const auth: AuthAPI = {
       throw new UnauthorizedError();
     }
 
+    // users 테이블에서 프로필 정보 가져오기
+    const { data: profile, error: profileError } = await sb
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.warn('[supabase/auth] Failed to fetch user profile:', profileError);
+    }
+
+    // 프로필 정보가 있으면 사용, 없으면 user_metadata 사용
+    const name = profile?.name || user.user_metadata?.name || 'User';
+    const phone = profile?.phone || user.user_metadata?.phone;
+    const status = profile?.status?.[0] || user.user_metadata?.status;
+    const goals = profile?.target_jobs || (user.user_metadata?.goals ? JSON.parse(user.user_metadata.goals) : undefined);
+    const avatar_url = profile?.avatar_url || user.user_metadata?.avatar_url;
+
     return {
       id: user.id,
       email: user.email!,
-      name: user.user_metadata?.name ?? 'User',
+      name,
+      phone,
+      status,
+      goals: Array.isArray(goals) ? goals : undefined,
       headline: user.user_metadata?.headline ?? undefined,
+      avatar_url,
     };
   },
   async resendEmailConfirmation(email: string): Promise<void> {
@@ -576,5 +598,34 @@ export const auth: AuthAPI = {
     throw new Error(
       '계정 삭제가 요청되었습니다. 실제 계정 삭제는 관리자 확인 후 처리됩니다. 잠시 후 로그아웃됩니다.',
     );
+  },
+  async updateProfile(input: UpdateProfileInput): Promise<MeOutput> {
+    const {
+      data: { user },
+      error: getUserError,
+    } = await sb.auth.getUser();
+
+    if (getUserError || !user) {
+      throw new UnauthorizedError('로그인이 필요합니다.');
+    }
+
+    // users 테이블 업데이트
+    const updateData: any = {};
+    if (input.avatar_url !== undefined) updateData.avatar_url = input.avatar_url;
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.headline !== undefined) updateData.headline = input.headline;
+
+    const { error: updateError } = await sb
+      .from('users')
+      .update(updateData)
+      .eq('id', user.id);
+
+    if (updateError) {
+      console.error('[supabase/auth] Failed to update profile:', updateError);
+      throw new Error(updateError.message || '프로필 업데이트에 실패했습니다.');
+    }
+
+    // 업데이트된 프로필 정보 반환
+    return this.me();
   },
 };

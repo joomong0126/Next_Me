@@ -7,6 +7,7 @@ import type {
   MeOutput,
   SignupInput,
   SignupOutput,
+  UpdateProfileInput,
 } from '../../contracts';
 import { clearAuthToken, requestJSON, setAuthToken } from './client';
 
@@ -67,5 +68,16 @@ export const auth: AuthAPI = {
     await new Promise((resolve) => setTimeout(resolve, 500));
     clearAuthToken();
     console.info('[mock/auth] Account deleted successfully');
+  },
+  async updateProfile(input: UpdateProfileInput): Promise<MeOutput> {
+    const currentProfile = await this.me();
+    const updatedProfile = {
+      ...currentProfile,
+      ...input,
+    };
+    // Mock에서는 즉시 성공
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    console.info('[mock/auth] Profile updated successfully');
+    return updatedProfile;
   },
 };

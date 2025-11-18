@@ -5,5 +5,8 @@ export interface User {
   email: string;
   name?: string;
   headline?: string;
+  avatar_url?: string;
+  goals?: string[];
+  phone?: string;
 }
 

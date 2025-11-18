@@ -11,6 +11,7 @@ import { Badge } from '@/shared/ui/shadcn/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/shared/ui/shadcn/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/shared/ui/shadcn/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/shared/ui/shadcn/accordion';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/shadcn/tabs';
 import { Checkbox } from '@/shared/ui/shadcn/checkbox';
 import { ScrollArea } from '@/shared/ui/shadcn/scroll-area';
 import { Calendar as CalendarComponent } from '@/shared/ui/shadcn/calendar';
@@ -41,12 +42,15 @@ import {
   GraduationCap,
   LogOut,
 } from 'lucide-react';
-import { themes } from '@/shared/lib/themes';
+import { themes, type ThemeColors } from '@/shared/lib/themes';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import type { AppOutletContext } from '../types';
 import { api } from '@/shared/api';
 import { useNavigate } from 'react-router-dom';
+import { useUser } from '@/features/auth/hooks/useUser';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabaseClient } from '@/shared/api/supabaseClient';
 
 interface WorkExperience {
   id: number;
@@ -117,6 +121,11 @@ export default function SettingsPage() {
     handleLogout,
     projects,
   } = useOutletContext<AppOutletContext>();
+  const { data: user, isLoading: isUserLoading } = useUser();
+  const queryClient = useQueryClient();
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState('main');
   const [experiences, setExperiences] = useState<WorkExperience[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -141,6 +150,12 @@ export default function SettingsPage() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const navigate = useNavigate();
+
+  // 현재 테마의 그라데이션 색상 가져오기
+  const currentTheme = themes.find(t => t.name === themeName) || themes[0];
+  const colors = darkMode ? currentTheme.dark : currentTheme.light;
+  const gradientFrom = colors.primaryLight;
+  const gradientTo = colors.primaryDark;
   const [importTargetSection, setImportTargetSection] = useState<'experience' | 'activity' | 'competition' | 'award' | null>(null);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
   const [editMode, setEditMode] = useState<EditMode | null>(null);
@@ -503,19 +518,21 @@ export default function SettingsPage() {
     pdfContent.style.fontFamily = 'Arial, sans-serif';
 
     // Build PDF content
+    const userName = user?.name || '사용자';
     let html = `
       <div style="max-width: 170mm;">
         <h1 style="font-size: 28px; margin-bottom: 10px; color: #1f2937;">이력서</h1>
-        <p style="font-size: 14px; color: #6b7280; margin-bottom: 30px;">예진님의 커리어 정보</p>
+        <p style="font-size: 14px; color: #6b7280; margin-bottom: 30px;">${userName}님의 커리어 정보</p>
     `;
 
     // Add basic info
     if (pdfOptions.includeBasicInfo) {
+      const goalsText = user?.goals && user.goals.length > 0 ? user.goals.join(', ') : '-';
       html += `
         <h2 style="font-size: 20px; margin-top: 30px; margin-bottom: 15px; color: #1f2937; border-bottom: 2px solid #1f2937; padding-bottom: 5px;">기본 정보</h2>
-        <p style="font-size: 14px; color: #374151; margin-bottom: 5px;"><strong>이름:</strong> 예진</p>
-        <p style="font-size: 14px; color: #374151; margin-bottom: 5px;"><strong>이메일:</strong> yejin@example.com</p>
-        <p style="font-size: 14px; color: #374151; margin-bottom: 5px;"><strong>소개:</strong> 데이터 기반 마케팅을 공부하는 마케터입니다</p>
+        <p style="font-size: 14px; color: #374151; margin-bottom: 5px;"><strong>이름:</strong> ${user?.name || '-'}</p>
+        <p style="font-size: 14px; color: #374151; margin-bottom: 5px;"><strong>이메일:</strong> ${user?.email || '-'}</p>
+        <p style="font-size: 14px; color: #374151; margin-bottom: 5px;"><strong>직군:</strong> ${goalsText}</p>
       `;
     }
 
@@ -741,6 +758,71 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // 파일 크기 검증 (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('파일 크기는 5MB 이하여야 합니다.');
+      return;
+    }
+
+    // 파일 타입 검증
+    if (!file.type.startsWith('image/')) {
+      alert('이미지 파일만 업로드할 수 있습니다.');
+      return;
+    }
+
+    if (!user?.id) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      // Supabase Storage에 업로드
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}.${fileExt}`;
+      const filePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabaseClient.storage
+        .from('avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true, // 같은 파일이 있으면 덮어쓰기
+        });
+
+      if (uploadError) {
+        throw new Error(uploadError.message || '이미지 업로드에 실패했습니다.');
+      }
+
+      // 공개 URL 가져오기
+      const { data: urlData } = supabaseClient.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const avatarUrl = urlData.publicUrl;
+
+      // 프로필 업데이트
+      await api.auth.updateProfile({ avatar_url: avatarUrl });
+
+      // 사용자 정보 새로고침
+      await queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+
+      alert('프로필 사진이 변경되었습니다.');
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      alert(error instanceof Error ? error.message : '프로필 사진 변경에 실패했습니다.');
+    } finally {
+      setIsUploadingAvatar(false);
+      // 파일 입력 초기화
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleDeleteAccount = async () => {
     if (!confirm('정말 계정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
       return;
@@ -771,63 +853,148 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-        <h1 className="text-gray-900 dark:text-white mb-2">Settings</h1>
-        <p className="text-gray-600 dark:text-gray-400">계정 및 환경 설정을 관리하세요</p>
-      </div>
+      <Tabs defaultValue="main" className="w-full">
+        <style>{`
+          [data-state="active"][value="main"],
+          [data-state="active"][value="settings"] {
+            background: linear-gradient(to right, ${gradientFrom}, ${gradientTo}) !important;
+            color: white !important;
+          }
+        `}</style>
+        <TabsList className="mb-6 h-12 gap-1">
+          <TabsTrigger 
+            value="main"
+            className="text-base font-semibold px-6 h-11 transition-all data-[state=active]:text-white"
+          >
+            메인
+          </TabsTrigger>
+          <TabsTrigger 
+            value="settings"
+            className="text-base font-semibold px-6 h-11 transition-all data-[state=active]:text-white"
+          >
+            설정
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Settings */}
-        <div className="lg:col-span-2 space-y-6">
+        <TabsContent value="main" className="space-y-6">
           {/* Profile Settings */}
           <Card className="rounded-2xl shadow-sm border-gray-200 dark:border-gray-700">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
-                <CardTitle className="dark:text-white">프로필 정보</CardTitle>
+                <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">프로필 정보</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="w-20 h-20 ring-2 ring-primary">
-                  <AvatarImage src="https://api.dicebear.com/7.x/avataaars/svg?seed=Yejin" />
-                  <AvatarFallback className="bg-primary text-white">예진</AvatarFallback>
-                </Avatar>
-                <div>
-                  <Button variant="outline" className="rounded-xl">
-                    사진 변경
-                  </Button>
-                  <p className="text-gray-500 dark:text-gray-400 mt-2">JPG, PNG 최대 5MB</p>
+              {isUserLoading ? (
+                <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+                  프로필 정보를 불러오는 중...
                 </div>
-              </div>
+              ) : (
+                <div className="flex items-start gap-6">
+                  {/* 프로필 사진 - 왼쪽 */}
+                  <div className="flex flex-col items-center gap-3">
+                    <Avatar className="w-20 h-20 ring-2 ring-primary">
+                      <AvatarImage 
+                        src={user?.avatar_url || (user?.name ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.name)}&gender=female` : '/유령.png')}
+                        alt="프로필 이미지"
+                      />
+                      <AvatarFallback className="bg-primary text-white text-base">
+                        {user?.name ? user.name.charAt(0) : '?'}
+                      </AvatarFallback>
+                    </Avatar>
+                    {/* TODO: 테이블 변경 후 이미지 업로드 기능 활성화
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png"
+                      onChange={handleAvatarUpload}
+                      className="hidden"
+                      id="avatar-upload"
+                      disabled={isUploadingAvatar}
+                    />
+                    <Button 
+                      variant="outline" 
+                      className="rounded-xl"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploadingAvatar || isUserLoading}
+                    >
+                      {isUploadingAvatar ? '업로드 중...' : '사진 변경'}
+                    </Button>
+                    <p className="text-gray-500 dark:text-gray-400 mt-2">JPG, PNG 최대 5MB</p>
+                    */}
+                    <Button 
+                      variant="outline" 
+                      className="rounded-xl text-sm"
+                      disabled
+                    >
+                      사진 변경
+                    </Button>
+                    <p className="text-gray-500 dark:text-gray-400 text-xs text-center">준비 중입니다</p>
+                  </div>
 
-              <Separator />
+                  {/* 프로필 정보 - 오른쪽 */}
+                  <div className="flex-1">
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* 이름 */}
+                      <div className="space-y-2">
+                        <Label htmlFor="name" className="text-lg font-semibold text-gray-900 dark:text-white">이름</Label>
+                        <Input 
+                          id="name" 
+                          defaultValue={user?.name || ''} 
+                          className="rounded-xl text-base"
+                          disabled
+                        />
+                      </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">이름</Label>
-                  <Input id="name" defaultValue="예진" className="rounded-xl" />
+                      {/* 직군 */}
+                      <div className="space-y-2">
+                        <Label className="text-lg font-semibold text-gray-900 dark:text-white">직군</Label>
+                        {user?.goals && user.goals.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 min-h-[2.5rem] items-center">
+                            {user.goals.map((goal, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="rounded-lg bg-accent text-accent-foreground text-sm py-1.5 px-3"
+                              >
+                                {goal}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="min-h-[2.5rem] flex items-center text-gray-400 text-sm">직군 정보가 없습니다</div>
+                        )}
+                      </div>
+
+                      {/* 이메일 */}
+                      <div className="space-y-2">
+                        <Label htmlFor="email" className="text-lg font-semibold text-gray-900 dark:text-white">이메일</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          defaultValue={user?.email || ''}
+                          className="rounded-xl text-base"
+                          disabled
+                        />
+                      </div>
+
+                      {/* 핸드폰 */}
+                      <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-lg font-semibold text-gray-900 dark:text-white">핸드폰</Label>
+                        <Input
+                          id="phone"
+                          type="tel"
+                          defaultValue={user?.phone || ''}
+                          className="rounded-xl text-base"
+                          disabled
+                          placeholder="핸드폰 번호를 입력해주세요"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">이메일</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    defaultValue="yejin@example.com"
-                    className="rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bio">소개</Label>
-                <Input
-                  id="bio"
-                  defaultValue="데이터 기반 마케팅을 공부하는 마케터입니다"
-                  className="rounded-xl"
-                />
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -837,7 +1004,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Briefcase className="w-5 h-5 text-primary" />
-                  <CardTitle className="dark:text-white">커리어 & 이력서 정보</CardTitle>
+                  <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">커리어 & 이력서 정보</CardTitle>
                 </div>
                 <Button
                   onClick={() => setIsPdfDialogOpen(true)}
@@ -1308,54 +1475,12 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Integration Settings */}
-          <Card className="rounded-2xl shadow-sm border-gray-200 dark:border-gray-700">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Cloud className="w-5 h-5 text-primary" />
-                <CardTitle className="dark:text-white">클라우드 연동</CardTitle>
-              </div>
-              <CardDescription className="dark:text-gray-400">외부 서비스와 동기화하세요</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
-                    <Cloud className="w-5 h-5 text-accent-foreground" />
-                  </div>
-                  <div>
-                    <div className="text-gray-900 dark:text-white">Google Drive</div>
-                    <div className="text-gray-500 dark:text-gray-400">연결되지 않음</div>
-                  </div>
-                </div>
-                <Button variant="outline" className="rounded-xl">
-                  연결
-                </Button>
-              </div>
-
-              <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
-                    <Cloud className="w-5 h-5 text-accent-foreground" />
-                  </div>
-                  <div>
-                    <div className="text-gray-900 dark:text-white">Dropbox</div>
-                    <div className="text-gray-500 dark:text-gray-400">연결되지 않음</div>
-                  </div>
-                </div>
-                <Button variant="outline" className="rounded-xl">
-                  연결
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Data Export */}
           <Card className="rounded-2xl shadow-sm border-gray-200 dark:border-gray-700">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Download className="w-5 h-5 text-primary" />
-                <CardTitle className="dark:text-white">데이터 내보내기</CardTitle>
+                <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">데이터 내보내기</CardTitle>
               </div>
               <CardDescription className="dark:text-gray-400">프로젝트 및 커리어 데이터를 다운로드하세요</CardDescription>
             </CardHeader>
@@ -1379,18 +1504,65 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
-        </div>
+        </TabsContent>
 
-        {/* Right Column - Additional Settings */}
-        <div className="space-y-6">
-          {/* UI Settings */}
-          <Card className="rounded-2xl shadow-sm border-gray-200 dark:border-gray-700">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Palette className="w-5 h-5 text-primary" />
-                <CardTitle className="dark:text-white">UI 설정</CardTitle>
-              </div>
-            </CardHeader>
+        <TabsContent value="settings" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Integration Settings */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Integration Settings */}
+              <Card className="rounded-2xl shadow-sm border-gray-200 dark:border-gray-700">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Cloud className="w-5 h-5 text-primary" />
+                    <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">클라우드 연동</CardTitle>
+                  </div>
+                  <CardDescription className="dark:text-gray-400">외부 서비스와 동기화하세요</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
+                        <Cloud className="w-5 h-5 text-accent-foreground" />
+                      </div>
+                      <div>
+                        <div className="text-gray-900 dark:text-white">Google Drive</div>
+                        <div className="text-gray-500 dark:text-gray-400">연결되지 않음</div>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="rounded-xl">
+                      연결
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center">
+                        <Cloud className="w-5 h-5 text-accent-foreground" />
+                      </div>
+                      <div>
+                        <div className="text-gray-900 dark:text-white">Dropbox</div>
+                        <div className="text-gray-500 dark:text-gray-400">연결되지 않음</div>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="rounded-xl">
+                      연결
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Column - Additional Settings */}
+            <div className="space-y-6">
+              {/* UI Settings */}
+              <Card className="rounded-2xl shadow-sm border-gray-200 dark:border-gray-700">
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Palette className="w-5 h-5 text-primary" />
+                    <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">UI 설정</CardTitle>
+                  </div>
+                </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <Label className="text-gray-900 dark:text-white">테마 컬러</Label>
@@ -1447,7 +1619,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Bell className="w-5 h-5 text-primary" />
-                <CardTitle className="dark:text-white">알림 설정</CardTitle>
+                <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">알림 설정</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1475,7 +1647,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Shield className="w-5 h-5 text-primary" />
-                <CardTitle className="dark:text-white">보안 및 개인정보</CardTitle>
+                <CardTitle className="text-xl font-semibold dark:text-white text-gray-900">보안 및 개인정보</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1509,7 +1681,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
-                <CardTitle className="text-red-900 dark:text-red-400">위험 영역</CardTitle>
+                <CardTitle className="text-xl font-semibold text-red-900 dark:text-red-400">위험 영역</CardTitle>
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1522,13 +1694,10 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
-
-          {/* Save Button */}
-          <Button className="w-full rounded-xl bg-primary hover:opacity-90">
-            변경사항 저장
-          </Button>
-        </div>
-      </div>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* PDF Export Options Dialog */}
       <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>

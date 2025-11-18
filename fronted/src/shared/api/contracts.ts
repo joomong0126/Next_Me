@@ -23,6 +23,7 @@ export type AuthUser = {
   status?: string;
   goals?: string[];
   method?: SignupMethod;
+  avatar_url?: string;
 };
 
 export type LoginOutput = {
@@ -69,6 +70,12 @@ export type ProjectRecordInput = Omit<ProjectRecord, 'role' | 'tools' | 'tags'> 
   tags?: string | string[] | null;
 };
 
+export type UpdateProfileInput = {
+  avatar_url?: string;
+  name?: string;
+  headline?: string;
+};
+
 export interface AuthAPI {
   login(input: LoginInput): Promise<LoginOutput>;
   loginWithGoogle(input: GoogleLoginInput): Promise<LoginOutput>;
@@ -78,6 +85,7 @@ export interface AuthAPI {
   resendEmailConfirmation(email: string): Promise<void>;
   changePassword(input: ChangePasswordInput): Promise<void>;
   deleteAccount(): Promise<void>;
+  updateProfile(input: UpdateProfileInput): Promise<MeOutput>;
 }
 
 export interface ProjectsAPI {

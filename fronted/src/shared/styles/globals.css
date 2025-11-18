@@ -221,6 +221,42 @@ html {
   background: rgba(75, 85, 99, 0.3) !important;
 }
 
+/* 반투명 스크롤바 스타일 */
+.scrollbar-thin-translucent {
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(156, 163, 175, 0.3) transparent !important;
+}
+
+.scrollbar-thin-translucent::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.scrollbar-thin-translucent::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.scrollbar-thin-translucent::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3) !important;
+  border-radius: 4px !important;
+  transition: background 0.2s ease !important;
+}
+
+.scrollbar-thin-translucent::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5) !important;
+}
+
+.dark .scrollbar-thin-translucent {
+  scrollbar-color: rgba(75, 85, 99, 0.3) transparent !important;
+}
+
+.dark .scrollbar-thin-translucent::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.3) !important;
+}
+
+.dark .scrollbar-thin-translucent::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 85, 99, 0.5) !important;
+}
+
 /* 스크롤바 숨기기 */
 .scrollbar-hide {
   scrollbar-width: none !important; /* Firefox */
@@ -237,4 +273,27 @@ html {
   color: rgb(var(--primary)) !important;
   font-weight: 600 !important;
   font-size: 1rem !important;
+}
+
+/* Intro page animations */
+@keyframes float {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translateY(0px);
+  }
+  50% {
+    transform: translate(-50%, -50%) translateY(-20px);
+  }
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
 }

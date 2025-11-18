@@ -3,7 +3,7 @@ import { ChangeEvent, KeyboardEvent, useEffect, useRef } from 'react';
 import type { Project } from '@/entities/project';
 import type { AssistantMessage } from './types';
 
-import { Bot, Loader2, MessageSquare, RotateCcw, Send, User, Plus, Check, Download } from 'lucide-react';
+import { Loader2, MessageSquare, RotateCcw, Send, User, Plus, Check, Download } from 'lucide-react';
 
 import { Button } from '@/shared/ui/shadcn/button';
 import { Textarea } from '@/shared/ui/shadcn/textarea';
@@ -66,8 +66,8 @@ export function ChatPanel({
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-              <Bot className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center overflow-hidden">
+              <img src="/유령.png" alt="Nexter" className="w-8 h-8 object-cover" />
             </div>
             <div>
               <h2 className="text-gray-900 dark:text-white">Nexter</h2>
@@ -90,11 +90,15 @@ export function ChatPanel({
               className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
             >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden ${
                   message.role === 'ai' ? 'bg-gradient-to-br from-purple-600 to-blue-600' : 'bg-gray-600 dark:bg-gray-400'
                 }`}
               >
-                {message.role === 'ai' ? <Bot className="w-5 h-5 text-white" /> : <User className="w-5 h-5 text-white" />}
+                {message.role === 'ai' ? (
+                  <img src="/유령.png" alt="AI" className="w-6 h-6 object-cover" />
+                ) : (
+                  <User className="w-5 h-5 text-white" />
+                )}
               </div>
               <div className={`flex-1 ${message.role === 'user' ? 'flex justify-end' : ''}`}>
                 <div>
@@ -168,8 +172,8 @@ export function ChatPanel({
 
         {isGenerating && (
           <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
-              <Bot className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <img src="/유령.png" alt="AI" className="w-6 h-6 object-cover" />
             </div>
             <div className="flex-1">
               <div className="inline-block rounded-2xl px-4 py-3 bg-gray-100 dark:bg-gray-700">

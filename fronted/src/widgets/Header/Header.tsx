@@ -64,9 +64,6 @@ export default function Header({ breadcrumb, darkMode, onToggleDarkMode, sidebar
             <div className="text-lg md:text-2xl text-gray-900 dark:text-white font-semibold tracking-tight truncate">
               {breadcrumb}
             </div>
-            <Badge className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-0 px-2 md:px-3 py-0.5 md:py-1 rounded-full text-xs flex-shrink-0">
-              Beta
-            </Badge>
           </div>
         </div>
 
