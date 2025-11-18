@@ -2,11 +2,12 @@ import { useState, MouseEvent } from 'react';
 import { Card, CardContent, CardDescription, CardHeader } from '@/shared/ui/shadcn/card';
 import { Button } from '@/shared/ui/shadcn/button';
 import { Badge } from '@/shared/ui/shadcn/badge';
-import { FileText, Link2, Sparkles, Download, ExternalLink, Grid3x3, List, Filter, Image, File, CheckSquare, Square } from 'lucide-react';
+import { FileText, Link2, Sparkles, Download, ExternalLink, Grid3x3, List, Filter, Image, File } from 'lucide-react';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/shadcn/dialog';
 import { Checkbox } from '@/shared/ui/shadcn/checkbox';
 import type { Project } from '@/entities/project';
+import JSZip from 'jszip';
 
 interface ProjectsBoardProps {
   projects: Project[];
@@ -17,25 +18,73 @@ type FilterType = 'all' | 'files' | 'links' | 'projects';
 function ProjectCard({ project, onProjectClick }: { project: Project; onProjectClick: (project: Project) => void }) {
   const Icon = project.icon;
   const TypeIcon = project.type === 'file' ? FileText : project.type === 'link' ? Link2 : Sparkles;
+  const files = (project as any)?.files as Array<{ name: string; url: string }> | undefined;
 
-  const handleDownload = (e: MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation();
-    if (project.type === 'file' && project.sourceUrl) {
-      const fileContent = `프로젝트: ${project.title}\n카테고리: ${project.category}\n요약: ${project.summary}\n태그: ${project.tags.join(', ')}\n\n이 파일은 Next ME에서 생성된 샘플 파일입니다.`;
-      
-      const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
+  const resolveSourceUrl = (sourceUrl: string) => {
+    if (/^https?:\/\//i.test(sourceUrl)) return sourceUrl;
+    const base = import.meta.env.VITE_PROJECT_FILES_BASE_URL || '/files/';
+    return `${base}${sourceUrl}`.replace(/([^:]\/)\/+/g, '$1');
+  };
+
+  const downloadFromUrl = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url, { credentials: 'omit' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = url;
-      link.download = project.sourceUrl!;
+      link.href = objectUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-      toast.success(`"${project.sourceUrl}" 파일을 다운로드했습니다`, {
+      URL.revokeObjectURL(objectUrl);
+      toast.success(`"${filename}" 파일을 다운로드했습니다`, {
         description: '다운로드 폴더를 확인하세요.',
       });
+    } catch (error) {
+      console.error('[ProjectsBoard] download error (blob). Falling back to direct link:', error);
+      // CORS/서명 URL 등으로 blob 다운로드가 막히는 경우 직접 링크로 열기 (쿼리스트링 보존)
+      try {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        toast.success(`"${filename}" 파일을 다운로드했습니다`, {
+          description: '다운로드 폴더를 확인하세요.',
+        });
+      } catch (fallbackErr) {
+        console.error('[ProjectsBoard] download error (fallback):', fallbackErr);
+        toast.error('파일을 다운로드할 수 없습니다', {
+          description: '파일 경로 또는 권한을 확인하세요.',
+        });
+      }
+    }
+  };
+
+  const handleDownload = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (project.sourceUrl || (files && files.length > 0)) {
+      // files[0]를 우선 사용, 없으면 sourceUrl 사용
+      if (files && files.length > 0) {
+        const first = files[0];
+        const url = resolveSourceUrl(first.url);
+        const filename = first.name || first.url.split('/').pop() || 'project-file';
+        toast.message('다운로드 준비', { description: filename });
+        void downloadFromUrl(url, filename);
+        return;
+      }
+      if (project.sourceUrl) {
+        const url = resolveSourceUrl(project.sourceUrl);
+        const filename = project.sourceUrl.split('/').pop() || 'project-file';
+        toast.message('다운로드 준비', { description: filename });
+        void downloadFromUrl(url, filename);
+      }
+    } else {
+      toast.error('다운로드할 파일이 없습니다');
     }
   };
 
@@ -69,22 +118,22 @@ function ProjectCard({ project, onProjectClick }: { project: Project; onProjectC
         </div>
         
         {/* Action Buttons */}
-        {project.type === 'file' && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleDownload}
-            className="relative z-10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg bg-white/10 hover:bg-white/20 text-white border-0"
-          >
-            <Download className="w-4 h-4" />
-          </Button>
-        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleDownload}
+          disabled={!(project.sourceUrl || (files && files.length > 0))}
+          className="relative z-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          title={project.sourceUrl || (files && files.length > 0) ? undefined : '다운로드할 파일이 없습니다'}
+        >
+          <Download className="w-4 h-4" />
+        </Button>
         {project.type === 'link' && (
           <Button
             size="sm"
             variant="ghost"
             onClick={handleOpenLink}
-            className="relative z-10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg bg-white/10 hover:bg-white/20 text-white border-0"
+            className="relative z-10 rounded-lg bg-white/10 hover:bg-white/20 text-white border-0"
           >
             <ExternalLink className="w-4 h-4" />
           </Button>
@@ -97,20 +146,76 @@ function ProjectCard({ project, onProjectClick }: { project: Project; onProjectC
 
       <CardHeader className="p-4 md:p-6">
         <CardDescription className="text-sm md:text-base line-clamp-2">{project.summary}</CardDescription>
-        {project.sourceUrl && (
+        {(project.sourceUrl || (files && files.length > 0)) && (
           <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-2">
-            {project.type === 'file' ? '📄 ' : '🔗 '}{project.sourceUrl}
+            {project.type === 'file' ? '📄 ' : '🔗 '}
+            {project.sourceUrl ? project.sourceUrl : files && files.length > 0 ? (files[0].name || files[0].url) : ''}
           </p>
         )}
       </CardHeader>
       <CardContent className="p-4 md:p-6 pt-0">
-        <div className="flex flex-wrap gap-1.5 md:gap-2">
-          {project.tags.map((tag) => (
-            <Badge key={tag} variant="outline" className="rounded-lg text-xs md:text-sm">
-              {tag}
-            </Badge>
-          ))}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5 md:gap-2">
+            {project.tags.map((tag) => (
+              <Badge key={tag} variant="outline" className="rounded-lg text-xs md:text-sm">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e: MouseEvent<HTMLButtonElement>) => {
+              e.stopPropagation();
+              // files[0]를 우선 사용, 없으면 sourceUrl 사용
+              if (files && files.length > 0) {
+                const first = files[0];
+                const url = resolveSourceUrl(first.url);
+                const filename = first.name || first.url.split('/').pop() || 'project-file';
+                toast.message('다운로드 준비', { description: filename });
+                void downloadFromUrl(url, filename);
+              } else if (project.sourceUrl) {
+                const url = resolveSourceUrl(project.sourceUrl!);
+                const filename = project.sourceUrl!.split('/').pop() || 'project-file';
+                toast.message('다운로드 준비', { description: filename });
+                void downloadFromUrl(url, filename);
+              } else {
+                toast.error('다운로드할 파일이 없습니다');
+              }
+            }}
+            disabled={!(project.sourceUrl || (files && files.length > 0))}
+            className="rounded-lg shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={project.sourceUrl || (files && files.length > 0) ? undefined : '다운로드할 파일이 없습니다'}
+          >
+            <Download className="w-4 h-4 mr-1.5" />
+            다운로드
+          </Button>
         </div>
+        {files && files.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {files.slice(0, 3).map((f) => (
+              <div key={f.url} className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate">{f.name || f.url}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e: MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation();
+                    const url = resolveSourceUrl(f.url);
+                    const filename = f.name || f.url.split('/').pop() || 'file';
+                    void downloadFromUrl(url, filename);
+                  }}
+                  className="h-7 px-2"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            ))}
+            {files.length > 3 && (
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">외 {files.length - 3}개 파일</p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -135,7 +240,7 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
 
   // 프로젝트에서 파일 추출
   const extractFiles = () => {
-    const files: Array<{ id: string; name: string; type: 'image' | 'pdf' | 'docx'; projectTitle: string; projectId: number }> = [];
+    const files: Array<{ id: string; name: string; url: string; type: 'image' | 'pdf' | 'docx'; projectTitle: string; projectId: number | string }> = [];
     
     projects.forEach(project => {
       if (project.type === 'file' && project.sourceUrl) {
@@ -144,11 +249,29 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
           files.push({
             id: `${project.id}-${project.sourceUrl}`,
             name: project.sourceUrl,
+            url: (/^https?:\/\//i.test(project.sourceUrl) ? project.sourceUrl : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${project.sourceUrl}`).replace(/([^:]\/)\/+/g, '$1'),
             type: fileType,
             projectTitle: project.title,
             projectId: project.id
           });
         }
+      }
+      if (project.type === 'file' && Array.isArray((project as any)?.files)) {
+        const pFiles = (project as any).files as Array<{ name: string; url: string }>;
+        pFiles.forEach((f) => {
+          const displayName = f.name || f.url;
+          const fileType = getFileType(displayName);
+          if (fileType) {
+            files.push({
+              id: `${project.id}-${f.url}`,
+              name: displayName,
+              url: (/^https?:\/\//i.test(f.url) ? f.url : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${f.url}`).replace(/([^:]\/)\/+/g, '$1'),
+              type: fileType,
+              projectTitle: project.title,
+              projectId: project.id
+            });
+          }
+        });
       }
     });
     
@@ -200,7 +323,7 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
   };
 
   // 선택한 파일 일괄 다운로드
-  const handleFilesDownload = () => {
+  const handleFilesDownload = async () => {
     if (selectedFiles.size === 0) {
       toast.error('다운로드할 파일을 선택해주세요');
       return;
@@ -208,20 +331,32 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
 
     const selectedFilesList = allFiles.filter(f => selectedFiles.has(f.id));
     
-    selectedFilesList.forEach((file, index) => {
-      setTimeout(() => {
-        const fileContent = `프로젝트: ${file.projectTitle}\\n파일명: ${file.name}\\n\\n이 파일은 Next ME에서 생성된 샘플 파일입니다.`;
-        const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = file.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, index * 100); // 순차적으로 다운로드
-    });
+    for (let i = 0; i < selectedFilesList.length; i++) {
+      const file = selectedFilesList[i];
+      const url = file.url || ((/^https?:\/\//i.test(file.name) ? file.name : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${file.name}`).replace(/([^:]\/)\/+/g, '$1'));
+      const filename = file.name.split('/').pop() || `file-${i + 1}`;
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, i * 100));
+      // eslint-disable-next-line no-await-in-loop
+      await (async () => {
+        try {
+          const res = await fetch(url, { credentials: 'omit' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = objectUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(objectUrl);
+        } catch (err) {
+          console.error('[ProjectsBoard] batch download error:', err);
+          toast.error(`"${filename}" 다운로드 실패`, { description: '파일 경로 또는 권한을 확인하세요.' });
+        }
+      })();
+    }
 
     toast.success(`${selectedFiles.size}개의 파일을 다운로드했습니다`, {
       description: '다운로드 폴더를 확인하세요.',
@@ -245,46 +380,127 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
 
   const filteredProjects = getFilteredProjects();
 
-  // 일괄 다운로드 함수
-  const handleBulkDownload = () => {
+  // 일괄 다운로드 함수 (ZIP 압축)
+  const handleBulkDownload = async () => {
     if (projects.length === 0) {
       toast.error('다운로드할 프로젝트가 없습니다');
       return;
     }
 
-    // 모든 프로젝트 정보를 하나의 텍스트 파일로 생성
-    let fileContent = `Next ME - 프로젝트 일괄 다운로드\\n`;
-    fileContent += `생성일: ${new Date().toLocaleString('ko-KR')}\\n`;
-    fileContent += `총 프로젝트 수: ${projects.length}\\n`;
-    fileContent += `\\n${'='.repeat(80)}\\n\\n`;
+    // 다운로드할 파일 목록 수집
+    const filesToDownload: Array<{ url: string; filename: string; projectTitle: string; folder?: string }> = [];
 
-    projects.forEach((project, index) => {
-      fileContent += `[${index + 1}] ${project.title}\\n`;
-      fileContent += `${'─'.repeat(80)}\\n`;
-      fileContent += `카테고리: ${project.category}\\n`;
-      fileContent += `타입: ${project.type === 'file' ? '파일' : project.type === 'link' ? '링크' : 'AI 프로젝트'}\\n`;
-      if (project.sourceUrl) {
-        fileContent += `소스: ${project.sourceUrl}\\n`;
+    projects.forEach((project) => {
+      // files 배열이 있는 경우
+      const projectFiles = (project as any)?.files as Array<{ name: string; url: string }> | undefined;
+      if (Array.isArray(projectFiles) && projectFiles.length > 0) {
+        projectFiles.forEach((file) => {
+          const base = (import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/';
+          const url = (/^https?:\/\//i.test(file.url) ? file.url : `${base}${file.url}`).replace(/([^:]\/)\/+/g, '$1');
+          const filename = file.name || file.url.split('/').pop() || 'file';
+          filesToDownload.push({
+            url,
+            filename,
+            projectTitle: project.title,
+            folder: project.title, // 프로젝트 제목을 폴더명으로 사용
+          });
+        });
       }
-      fileContent += `\\n요약:\\n${project.summary}\\n`;
-      fileContent += `\\n태그: ${project.tags.join(', ')}\\n`;
-      fileContent += `\\n${'='.repeat(80)}\\n\\n`;
+      // sourceUrl이 있는 경우 (files 배열이 없을 때만)
+      else if (project.type === 'file' && project.sourceUrl) {
+        const base = (import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/';
+        const url = (/^https?:\/\//i.test(project.sourceUrl) ? project.sourceUrl : `${base}${project.sourceUrl}`).replace(/([^:]\/)\/+/g, '$1');
+        const filename = project.sourceUrl.split('/').pop() || 'file';
+        filesToDownload.push({
+          url,
+          filename,
+          projectTitle: project.title,
+          folder: project.title, // 프로젝트 제목을 폴더명으로 사용
+        });
+      }
     });
 
-    // 파일 다운로드
-    const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `NextME_프로젝트_전체_${new Date().toISOString().split('T')[0]}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (filesToDownload.length === 0) {
+      toast.error('다운로드할 파일이 없습니다');
+      return;
+    }
 
-    toast.success(`${projects.length}개의 프로젝트를 다운로드했습니다`, {
-      description: '다운로드 폴더를 확인하세요.',
+    // 로딩 토스트 표시
+    const loadingToast = toast.loading(`${filesToDownload.length}개의 파일을 압축 중...`, {
+      description: '잠시만 기다려주세요',
     });
+
+    try {
+      const zip = new JSZip();
+      let successCount = 0;
+      let failCount = 0;
+
+      // 각 파일을 다운로드하여 ZIP에 추가
+      for (const file of filesToDownload) {
+        try {
+          const response = await fetch(file.url, { credentials: 'omit' });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          
+          const blob = await response.blob();
+          
+          // 프로젝트별로 폴더를 만들어서 파일 추가
+          const folderPath = file.folder ? `${file.folder}/` : '';
+          const filePath = `${folderPath}${file.filename}`;
+          
+          zip.file(filePath, blob);
+          successCount++;
+        } catch (err) {
+          console.error(`[ProjectsBoard] Failed to download ${file.filename}:`, err);
+          failCount++;
+        }
+      }
+
+      if (successCount === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('모든 파일 다운로드에 실패했습니다', {
+          description: '파일 경로 또는 권한을 확인하세요.',
+        });
+        return;
+      }
+
+      // ZIP 파일 생성
+      toast.dismiss(loadingToast);
+      const generatingToast = toast.loading('ZIP 파일 생성 중...', {
+        description: '잠시만 기다려주세요',
+      });
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      
+      // ZIP 파일 다운로드
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = zipUrl;
+      a.download = `projects-files-${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(zipUrl);
+
+      toast.dismiss(generatingToast);
+      
+      // 결과 표시
+      if (failCount > 0) {
+        toast.success(`${successCount}개의 파일을 ZIP으로 압축했습니다`, {
+          description: `${failCount}개 파일 다운로드 실패`,
+          duration: 4000,
+        });
+      } else {
+        toast.success(`${successCount}개의 파일을 ZIP으로 압축했습니다`, {
+          duration: 3000,
+        });
+      }
+    } catch (err) {
+      toast.dismiss(loadingToast);
+      console.error('[ProjectsBoard] ZIP creation error:', err);
+      toast.error('ZIP 파일 생성에 실패했습니다', {
+        description: err instanceof Error ? err.message : '알 수 없는 오류',
+      });
+    }
   };
 
   return (
@@ -295,14 +511,24 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
           <h1 className="text-gray-900 dark:text-white mb-1 md:mb-2">내 프로젝트 모아보기</h1>
           <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">Nexter에서 추가한 프로젝트를 한눈에 확인하세요</p>
         </div>
-        <Button
-          onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-          variant="outline"
-          className="rounded-lg"
-        >
-          {viewMode === 'grid' ? <List className="w-4 h-4 mr-2" /> : <Grid3x3 className="w-4 h-4 mr-2" />}
-          {viewMode === 'grid' ? '리스트 보기' : '그리드 보기'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleBulkDownload}
+            variant="default"
+            className="rounded-lg"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            전체 파일 다운로드
+          </Button>
+          <Button
+            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            variant="outline"
+            className="rounded-lg"
+          >
+            {viewMode === 'grid' ? <List className="w-4 h-4 mr-2" /> : <Grid3x3 className="w-4 h-4 mr-2" />}
+            {viewMode === 'grid' ? '리스트 보기' : '그리드 보기'}
+          </Button>
+        </div>
       </div>
 
       {/* Filter Tabs */}
@@ -573,21 +799,44 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
                       </Badge>
                     </div>
 
-                    {/* Download Button */}
-                    {selectedProject.type === 'file' && selectedProject.sourceUrl && (
+                    {/* Download Buttons (always visible) */}
+                    <div className="space-y-2">
                       <Button
                         onClick={() => {
-                          const fileContent = `프로젝트: ${selectedProject.title}\n카테고리: ${selectedProject.category}\n요약: ${selectedProject.summary}\n태그: ${selectedProject.tags.join(', ')}\n\n이 파일은 Next ME에서 생성된 샘플 파일입니다.`;
-                          const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-                          const url = URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = selectedProject.sourceUrl ?? 'project.txt';
-                          document.body.appendChild(link);
-                          link.click();
-                          document.body.removeChild(link);
-                          URL.revokeObjectURL(url);
-                          toast.success('파일을 다운로드했습니다');
+                          // 1) sourceUrl 우선, 2) files[0], 3) 없으면 오류
+                          const filesArr = Array.isArray((selectedProject as any).files)
+                            ? ((selectedProject as any).files as Array<{ name: string; url: string }>)
+                            : [];
+                          // files[0] 우선, 없으면 sourceUrl
+                          const candidateUrl = filesArr[0]?.url
+                            ? (/^https?:\/\//i.test(filesArr[0].url) ? filesArr[0].url : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${filesArr[0].url}`).replace(/([^:]\/)\/+/g, '$1')
+                            : (selectedProject.sourceUrl
+                                ? (/^https?:\/\//i.test(selectedProject.sourceUrl!) ? selectedProject.sourceUrl! : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${selectedProject.sourceUrl!}`).replace(/([^:]\/)\/+/g, '$1')
+                                : null);
+                          const filename = filesArr[0]?.name || filesArr[0]?.url?.split('/').pop() || (selectedProject.sourceUrl ? selectedProject.sourceUrl!.split('/').pop() : 'file') || 'file';
+                          if (!candidateUrl) {
+                            toast.error('다운로드할 파일이 없습니다');
+                            return;
+                          }
+                          void (async () => {
+                            try {
+                              const res = await fetch(candidateUrl, { credentials: 'omit' });
+                              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                              const blob = await res.blob();
+                              const objectUrl = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = objectUrl;
+                              a.download = filename!;
+                              document.body.appendChild(a);
+                              a.click();
+                              document.body.removeChild(a);
+                              URL.revokeObjectURL(objectUrl);
+                              toast.success('파일을 다운로드했습니다');
+                            } catch (err) {
+                              console.error('[ProjectsBoard] single download error:', err);
+                              toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
+                            }
+                          })();
                         }}
                         className="w-full"
                         size="sm"
@@ -595,25 +844,54 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
                         <Download className="w-4 h-4 mr-2" />
                         파일 다운로드
                       </Button>
-                    )}
+                      {/* files 배열이 있는 경우 목록도 그대로 유지 */}
+                      {Array.isArray((selectedProject as any).files) && !selectedProject.sourceUrl && (
+                        <div className="space-y-2">
+                          {((selectedProject as any).files as Array<{ name: string; url: string }>).map((f) => (
+                            <div key={f.url} className="flex items-center justify-between gap-2">
+                              <span className="text-sm truncate">{f.name || f.url}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const url = (/^https?:\/\//i.test(f.url) ? f.url : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${f.url}`).replace(/([^:]\/)\/+/g, '$1');
+                                  const filename = f.name || f.url.split('/').pop() || 'file';
+                                  void (async () => {
+                                    try {
+                                      const res = await fetch(url, { credentials: 'omit' });
+                                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                      const blob = await res.blob();
+                                      const objectUrl = URL.createObjectURL(blob);
+                                      const a = document.createElement('a');
+                                      a.href = objectUrl;
+                                      a.download = filename;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      URL.revokeObjectURL(objectUrl);
+                                      toast.success('파일을 다운로드했습니다');
+                                    } catch (err) {
+                                      console.error('[ProjectsBoard] single download error:', err);
+                                      toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
+                                    }
+                                  })();
+                                }}
+                              >
+                                <Download className="w-4 h-4 mr-2" />
+                                다운로드
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             )}
           </div>
 
-          <div className="flex gap-2 mt-4 border-t pt-4">
-            <Button
-              onClick={() => {
-                setFilesDialogOpen(false);
-                setSelectedFileForView(null);
-              }}
-              variant="outline"
-              className="flex-1"
-            >
-              닫기
-            </Button>
-          </div>
+          {/* Footer close button removed; use top-right X to close */}
         </DialogContent>
       </Dialog>
 
@@ -687,26 +965,82 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
 
                     {/* Action Buttons */}
                     <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      {selectedProjectForDetail.type === 'file' && selectedProjectForDetail.sourceUrl && (
-                        <Button
-                          onClick={() => {
-                            const fileContent = `프로젝트: ${selectedProjectForDetail.title}\\n카테고리: ${selectedProjectForDetail.category}\\n요약: ${selectedProjectForDetail.summary}\\n태그: ${selectedProjectForDetail.tags.join(', ')}\\n\\n이 파일은 Next ME에서 생성된 샘플 파일입니다.`;
-                            const blob = new Blob([fileContent], { type: 'text/plain;charset=utf-8' });
-                            const url = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = selectedProjectForDetail.sourceUrl ?? 'project.txt';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-                            toast.success('파일을 다운로드했습니다');
-                          }}
-                          className="flex-1"
-                        >
-                          <Download className="w-4 h-4 mr-2" />
-                          파일 다운로드
-                        </Button>
+                      {(selectedProjectForDetail.sourceUrl || Array.isArray((selectedProjectForDetail as any).files)) && (
+                        <>
+                          {selectedProjectForDetail.sourceUrl && (
+                            <Button
+                              onClick={() => {
+                                const url = (/^https?:\/\//i.test(selectedProjectForDetail.sourceUrl!) ? selectedProjectForDetail.sourceUrl! : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${selectedProjectForDetail.sourceUrl!}`).replace(/([^:]\/)\/+/g, '$1');
+                                const filename = selectedProjectForDetail.sourceUrl!.split('/').pop() || 'project-file';
+                                void (async () => {
+                                  try {
+                                    const res = await fetch(url, { credentials: 'omit' });
+                                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                    const blob = await res.blob();
+                                    const objectUrl = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = objectUrl;
+                                    a.download = filename;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(objectUrl);
+                                    toast.success('파일을 다운로드했습니다');
+                                  } catch (err) {
+                                    console.error('[ProjectsBoard] single download error:', err);
+                                    toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
+                                  }
+                                })();
+                              }}
+                              className="flex-1"
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              파일 다운로드
+                            </Button>
+                          )}
+                          {!selectedProjectForDetail.sourceUrl &&
+                            Array.isArray((selectedProjectForDetail as any).files) && (
+                              <div className="w-full space-y-2">
+                                {((selectedProjectForDetail as any).files as Array<{ name: string; url: string }>).map(
+                                  (f) => (
+                                    <div key={f.url} className="flex items-center justify-between gap-2">
+                                      <span className="text-sm truncate">{f.name || f.url}</span>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          const url = (/^https?:\/\//i.test(f.url) ? f.url : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${f.url}`).replace(/([^:]\/)\/+/g, '$1');
+                                          const filename = f.name || f.url.split('/').pop() || 'file';
+                                          void (async () => {
+                                            try {
+                                              const res = await fetch(url, { credentials: 'omit' });
+                                              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                                              const blob = await res.blob();
+                                              const objectUrl = URL.createObjectURL(blob);
+                                              const a = document.createElement('a');
+                                              a.href = objectUrl;
+                                              a.download = filename;
+                                              document.body.appendChild(a);
+                                              a.click();
+                                              document.body.removeChild(a);
+                                              URL.revokeObjectURL(objectUrl);
+                                              toast.success('파일을 다운로드했습니다');
+                                            } catch (err) {
+                                              console.error('[ProjectsBoard] single download error:', err);
+                                              toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
+                                            }
+                                          })();
+                                        }}
+                                      >
+                                        <Download className="w-4 h-4 mr-2" />
+                                        다운로드
+                                      </Button>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            )}
+                        </>
                       )}
                       {selectedProjectForDetail.type === 'link' && selectedProjectForDetail.sourceUrl && (
                         <Button
@@ -728,15 +1062,7 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
                 </Card>
               </div>
 
-              <div className="flex gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <Button
-                  onClick={() => setSelectedProjectForDetail(null)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  닫기
-                </Button>
-              </div>
+              {/* Footer close button removed; use top-right X to close */}
             </>
           )}
         </DialogContent>

@@ -20,6 +20,8 @@ export interface Project {
   achievements?: string;
   tools?: string;
   description?: string;
+  files?: Array<{ name: string; url: string }>;
+  links?: string[];
 }
 
 export type ProjectsState = [Project[], Dispatch<SetStateAction<Project[]>>];

@@ -42,7 +42,7 @@ export type ChangePasswordInput = {
 export type ProjectRecordType = 'file' | 'link' | 'project';
 
 export type ProjectRecord = {
-  id: number;
+  id: number | string;
   title: string;
   category: string;
   tags: string[];
@@ -56,6 +56,10 @@ export type ProjectRecord = {
   achievements?: string | null;
   tools?: string | null; // API 응답 시에는 string | null, 입력 시에는 string | string[] | null도 허용
   description?: string | null;
+  files?: Array<{ name: string; url: string }> | null;
+  links?: string[] | null;
+  createdAt?: string | null; // Supabase 특별 열: created_at
+  updatedAt?: string | null; // Supabase 특별 열: updated_at
 };
 
 // 프로젝트 생성/수정 시 입력 타입 (배열 필드가 string | string[] | null을 받을 수 있도록 확장)

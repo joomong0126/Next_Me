@@ -45,6 +45,7 @@ export default function AppLayout() {
   const [darkMode, setDarkMode] = useState(false);
   const [themeName, setThemeName] = useState<string>('black');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [quickActionOpen, setQuickActionOpen] = useState(false);
   const [welcomeDialogOpen, setWelcomeDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
@@ -164,17 +165,20 @@ export default function AppLayout() {
         onNavigate={handleNavigate}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
+        collapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
       />
       <Header
         breadcrumb={breadcrumbMap[currentPage]}
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
+        sidebarCollapsed={isSidebarCollapsed}
         onMenuClick={() => setIsSidebarOpen((prev) => !prev)}
         onQuickAction={() => setQuickActionOpen(true)}
         onLogout={handleLogout}
       />
 
-      <main className="md:ml-72 mt-16 md:mt-20 p-4 md:p-8">
+      <main className={`${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} mt-16 md:mt-20 p-4 md:p-8`}>
         <div className="max-w-[1600px] mx-auto">
           <Outlet context={outletContext} />
         </div>

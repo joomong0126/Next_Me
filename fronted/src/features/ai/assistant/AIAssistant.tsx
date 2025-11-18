@@ -237,6 +237,7 @@ export function AIAssistant({
         achievements: data.achievements,
         tools: toolsArray, // 배열로 전송 (Supabase에서 text[] 타입으로 처리)
         description: data.description,
+        files: (data as any).files || undefined, // files 배열 전달 (없으면 undefined)
       });
 
       // ProjectRecord를 Project로 변환
@@ -266,6 +267,7 @@ export function AIAssistant({
 
     try {
       // Supabase에 프로젝트 저장
+      // files는 기존 프로젝트의 files를 자동으로 유지 (화면에 표시하지 않지만 함께 저장)
       const updatedRecord = await api.projects.update(projectId, {
         title: data.title,
         category: data.category,
@@ -280,6 +282,7 @@ export function AIAssistant({
         achievements: data.achievements,
         tools: data.tools,
         description: data.description,
+        files: targetProject.files || data.files, // 기존 프로젝트의 files를 우선 사용, 없으면 form의 files 사용
       });
 
       // ProjectRecord를 Project로 변환

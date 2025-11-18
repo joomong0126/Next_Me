@@ -35,6 +35,7 @@ export interface EditProjectFormValues {
   description: string;
   startDate?: Date;
   endDate?: Date;
+  files?: Array<{ name: string; url: string }>;
 }
 
 const DEFAULT_FORM_VALUES: EditProjectFormValues = {
@@ -79,6 +80,7 @@ export function EditProjectDialog({
       description: project.description ?? '',
       startDate: project.startDate,
       endDate: project.endDate,
+      files: project.files ? (Array.isArray(project.files) ? project.files : []) : undefined,
     });
   }, [project]);
 
@@ -90,6 +92,7 @@ export function EditProjectDialog({
       [key]: value,
     }));
   };
+
 
   const handleSubmit = async () => {
     if (!project) return;
@@ -217,6 +220,7 @@ export function EditProjectDialog({
               </div>
             </div>
           </div>
+
           </div>
         </div>
 

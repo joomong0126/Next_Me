@@ -31,6 +31,8 @@ export function mapProjectRecordToProject(record: ProjectRecord): Project {
     achievements: record.achievements ?? undefined,
     tools: record.tools ?? undefined,
     description: record.description ?? undefined,
+    files: record.files ?? undefined,
+    links: record.links ?? undefined,
   };
 }
 

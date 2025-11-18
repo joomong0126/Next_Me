@@ -3,8 +3,9 @@ import type { Project } from '@/entities/project';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/shadcn/dialog';
 import { Badge } from '@/shared/ui/shadcn/badge';
 import { Button } from '@/shared/ui/shadcn/button';
+import { toast } from 'sonner';
 
-import { Edit2, ExternalLink } from 'lucide-react';
+import { Edit2, ExternalLink, Download } from 'lucide-react';
 
 interface ProjectDetailDialogProps {
   open: boolean;
@@ -17,6 +18,45 @@ export function ProjectDetailDialog({ open, project, onClose, onEdit }: ProjectD
   if (!project) {
     return null;
   }
+
+  const resolveSourceUrl = (sourceUrl: string) => {
+    if (/^https?:\/\//i.test(sourceUrl)) return sourceUrl;
+    const base = (import.meta as any)?.env?.VITE_PROJECT_FILES_BASE_URL || '/files/';
+    return `${base}${sourceUrl}`.replace(/([^:]\/)\/+/g, '$1');
+  };
+
+  const handleDownload = async () => {
+    const filesArr = Array.isArray(project.files) ? project.files : [];
+    const candidateUrl = project.sourceUrl
+      ? resolveSourceUrl(project.sourceUrl)
+      : (filesArr[0]?.url ? resolveSourceUrl(filesArr[0].url) : null);
+    const filename = project.sourceUrl
+      ? project.sourceUrl.split('/').pop() || 'project-file'
+      : (filesArr[0]?.name || filesArr[0]?.url?.split('/').pop() || 'file');
+
+    if (!candidateUrl) {
+      toast.error('다운로드할 파일이 없습니다');
+      return;
+    }
+
+    try {
+      const res = await fetch(candidateUrl, { credentials: 'omit' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename!;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      toast.success('파일을 다운로드했습니다');
+    } catch (err) {
+      console.error('[Assistant/ProjectDetailDialog] download error:', err);
+      toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
@@ -104,6 +144,13 @@ export function ProjectDetailDialog({ open, project, onClose, onEdit }: ProjectD
           </div>
 
           <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+            <Button
+              onClick={handleDownload}
+              className="flex-1"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              파일 다운로드
+            </Button>
             <Button
               variant="outline"
               onClick={() => {
