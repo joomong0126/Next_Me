@@ -1,4 +1,5 @@
-import { useState, MouseEvent } from 'react';
+import { useState, MouseEvent, useMemo, Dispatch, SetStateAction } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader } from '@/shared/ui/shadcn/card';
 import { Button } from '@/shared/ui/shadcn/button';
 import { Badge } from '@/shared/ui/shadcn/badge';
@@ -7,10 +8,15 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/shared/ui/shadcn/dialog';
 import { Checkbox } from '@/shared/ui/shadcn/checkbox';
 import type { Project } from '@/entities/project';
+import { api } from '@/shared/api';
+import { mapProjectRecordToProject } from '@/entities/project/lib/mapProject';
+import { EditProjectDialog, type EditProjectFormValues } from '@/features/ai/assistant/components/EditProjectDialog';
+import { MARKETING_CATEGORIES, DEVELOPMENT_CATEGORIES } from '@/features/ai/assistant/constants';
 import JSZip from 'jszip';
 
 interface ProjectsBoardProps {
   projects: Project[];
+  setProjects?: Dispatch<SetStateAction<Project[]>>;
 }
 
 type FilterType = 'all' | 'files' | 'links' | 'projects';
@@ -221,13 +227,15 @@ function ProjectCard({ project, onProjectClick }: { project: Project; onProjectC
   );
 }
 
-export function ProjectsBoard({ projects }: ProjectsBoardProps) {
+export function ProjectsBoard({ projects, setProjects }: ProjectsBoardProps) {
+  const queryClient = useQueryClient();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filesDialogOpen, setFilesDialogOpen] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [selectedFileForView, setSelectedFileForView] = useState<string | null>(null);
-  const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<Project | null>(null);
+  const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // 파일 타입 체크 함수
   const getFileType = (filename: string): 'image' | 'pdf' | 'docx' | null => {
@@ -379,6 +387,75 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
   };
 
   const filteredProjects = getFilteredProjects();
+
+  // 사용 가능한 카테고리 목록 생성
+  const availableCategories = useMemo(() => {
+    const categorySet = new Set<string>([...MARKETING_CATEGORIES, ...DEVELOPMENT_CATEGORIES]);
+    projects.forEach((project) => {
+      if (project.category) {
+        categorySet.add(project.category);
+      }
+    });
+    return Array.from(categorySet);
+  }, [projects]);
+
+  // 프로젝트 저장 핸들러
+  const handleSaveProject = async (projectId: number | string, data: EditProjectFormValues) => {
+    const targetProject = projects.find((project) => project.id === projectId);
+    if (!targetProject) {
+      toast.error('프로젝트를 찾을 수 없습니다.');
+      return;
+    }
+
+    try {
+      const updatedRecord = await api.projects.update(projectId, {
+        title: data.title,
+        category: data.category,
+        tags: data.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+        summary: data.summary,
+        type: targetProject.type,
+        sourceUrl: targetProject.sourceUrl,
+        period: data.period,
+        startDate: data.startDate ? data.startDate.toISOString() : null,
+        endDate: data.endDate ? data.endDate.toISOString() : null,
+        role: data.role,
+        achievements: data.achievements,
+        tools: data.tools,
+        description: data.description,
+        files: targetProject.files || data.files,
+      });
+
+      const updatedProject = mapProjectRecordToProject(updatedRecord);
+
+      if (setProjects) {
+        setProjects((previous) => previous.map((project) => (project.id === projectId ? updatedProject : project)));
+      }
+
+      void queryClient.refetchQueries({ queryKey: ['projects'] });
+
+      setIsEditDialogOpen(false);
+      setProjectToEdit(null);
+
+      toast.success('저장 완료 되었습니다');
+    } catch (error) {
+      console.error('Error saving project:', error);
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다';
+      toast.error(`프로젝트 저장 실패: ${errorMessage}`);
+    }
+  };
+
+  // AI로 정리하기 핸들러 (간단한 안내 메시지)
+  const handleOrganizeWithAI = async (project: Project) => {
+    toast.info('AI로 프로젝트 정리 기능은 AI Assistant 페이지에서 사용할 수 있습니다.', {
+      description: 'AI Assistant 페이지로 이동하여 프로젝트를 정리해보세요.',
+    });
+  };
+
+  // 프로젝트 클릭 핸들러 (편집 다이얼로그 열기)
+  const handleProjectClick = (project: Project) => {
+    setProjectToEdit(project);
+    setIsEditDialogOpen(true);
+  };
 
   // 일괄 다운로드 함수 (ZIP 압축)
   const handleBulkDownload = async () => {
@@ -574,7 +651,7 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
           : "space-y-4"
         }>
           {filteredProjects.map((project) => (
-            <ProjectCard key={project.id} project={project} onProjectClick={setSelectedProjectForDetail} />
+            <ProjectCard key={project.id} project={project} onProjectClick={handleProjectClick} />
           ))}
         </div>
       )}
@@ -895,178 +972,18 @@ export function ProjectsBoard({ projects }: ProjectsBoardProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Project Detail Dialog */}
-      <Dialog open={selectedProjectForDetail !== null} onOpenChange={(open: boolean) => !open && setSelectedProjectForDetail(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          {selectedProjectForDetail && (
-            <>
-              <DialogHeader>
-                <DialogTitle>프로젝트 상세 정보</DialogTitle>
-                <DialogDescription>
-                  프로젝트의 전체 정보를 확인하세요
-                </DialogDescription>
-              </DialogHeader>
-
-              <div className="overflow-y-auto flex-1 min-h-0">
-                <Card className="overflow-hidden border-0 shadow-none">
-                  {/* Project Header */}
-                  <div className={`bg-gradient-to-br ${selectedProjectForDetail.gradient} p-6 relative overflow-hidden`}>
-                    <div className="absolute inset-0 bg-black/5"></div>
-                    <div className="absolute top-2 right-2 w-16 h-16 bg-white/10 rounded-full blur-xl"></div>
-                    <div className="absolute bottom-3 left-3 w-12 h-12 bg-white/10 rounded-full blur-lg"></div>
-                    <div className="relative z-10">
-                      <div className="flex items-center gap-4 mb-3">
-                        {selectedProjectForDetail.icon && (
-                          <div className="w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-                            <selectedProjectForDetail.icon className="w-8 h-8 text-white/90" strokeWidth={1.5} />
-                          </div>
-                        )}
-                        <div className="flex-1">
-                          <h3 className="text-white text-xl">{selectedProjectForDetail.title}</h3>
-                          <p className="text-white/80">{selectedProjectForDetail.category}</p>
-                        </div>
-                      </div>
-                      <Badge variant="secondary" className="bg-white/20 text-white border-0">
-                        {selectedProjectForDetail.type === 'file' ? '📄 파일' : selectedProjectForDetail.type === 'link' ? '🔗 링크' : '✨ AI 프로젝트'}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <CardContent className="p-6 space-y-6">
-                    {/* Summary */}
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">프로젝트 요약</p>
-                      <p className="text-sm leading-relaxed">{selectedProjectForDetail.summary}</p>
-                    </div>
-
-                    {/* Source URL */}
-                    {selectedProjectForDetail.sourceUrl && (
-                      <div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                          {selectedProjectForDetail.type === 'file' ? '파일명' : '링크 주소'}
-                        </p>
-                        <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-                          <p className="text-sm break-all">{selectedProjectForDetail.sourceUrl}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Tags */}
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">태그</p>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedProjectForDetail.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="rounded-lg">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      {(selectedProjectForDetail.sourceUrl || Array.isArray((selectedProjectForDetail as any).files)) && (
-                        <>
-                          {selectedProjectForDetail.sourceUrl && (
-                            <Button
-                              onClick={() => {
-                                const url = (/^https?:\/\//i.test(selectedProjectForDetail.sourceUrl!) ? selectedProjectForDetail.sourceUrl! : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${selectedProjectForDetail.sourceUrl!}`).replace(/([^:]\/)\/+/g, '$1');
-                                const filename = selectedProjectForDetail.sourceUrl!.split('/').pop() || 'project-file';
-                                void (async () => {
-                                  try {
-                                    const res = await fetch(url, { credentials: 'omit' });
-                                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                                    const blob = await res.blob();
-                                    const objectUrl = URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
-                                    a.href = objectUrl;
-                                    a.download = filename;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                    URL.revokeObjectURL(objectUrl);
-                                    toast.success('파일을 다운로드했습니다');
-                                  } catch (err) {
-                                    console.error('[ProjectsBoard] single download error:', err);
-                                    toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
-                                  }
-                                })();
-                              }}
-                              className="flex-1"
-                            >
-                              <Download className="w-4 h-4 mr-2" />
-                              파일 다운로드
-                            </Button>
-                          )}
-                          {!selectedProjectForDetail.sourceUrl &&
-                            Array.isArray((selectedProjectForDetail as any).files) && (
-                              <div className="w-full space-y-2">
-                                {((selectedProjectForDetail as any).files as Array<{ name: string; url: string }>).map(
-                                  (f) => (
-                                    <div key={f.url} className="flex items-center justify-between gap-2">
-                                      <span className="text-sm truncate">{f.name || f.url}</span>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => {
-                                          const url = (/^https?:\/\//i.test(f.url) ? f.url : `${(import.meta as any).env?.VITE_PROJECT_FILES_BASE_URL || '/files/'}${f.url}`).replace(/([^:]\/)\/+/g, '$1');
-                                          const filename = f.name || f.url.split('/').pop() || 'file';
-                                          void (async () => {
-                                            try {
-                                              const res = await fetch(url, { credentials: 'omit' });
-                                              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                                              const blob = await res.blob();
-                                              const objectUrl = URL.createObjectURL(blob);
-                                              const a = document.createElement('a');
-                                              a.href = objectUrl;
-                                              a.download = filename;
-                                              document.body.appendChild(a);
-                                              a.click();
-                                              document.body.removeChild(a);
-                                              URL.revokeObjectURL(objectUrl);
-                                              toast.success('파일을 다운로드했습니다');
-                                            } catch (err) {
-                                              console.error('[ProjectsBoard] single download error:', err);
-                                              toast.error('파일을 다운로드할 수 없습니다', { description: '파일 경로 또는 권한을 확인하세요.' });
-                                            }
-                                          })();
-                                        }}
-                                      >
-                                        <Download className="w-4 h-4 mr-2" />
-                                        다운로드
-                                      </Button>
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            )}
-                        </>
-                      )}
-                      {selectedProjectForDetail.type === 'link' && selectedProjectForDetail.sourceUrl && (
-                        <Button
-                          onClick={() => {
-                            const demoUrl = selectedProjectForDetail.sourceUrl!.startsWith('http') 
-                              ? selectedProjectForDetail.sourceUrl! 
-                              : `https://example.com/${selectedProjectForDetail.sourceUrl}`;
-                            window.open(demoUrl, '_blank', 'noopener,noreferrer');
-                            toast.success('링크를 새 탭에서 엽니다');
-                          }}
-                          className="flex-1"
-                        >
-                          <ExternalLink className="w-4 h-4 mr-2" />
-                          링크 열기
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Footer close button removed; use top-right X to close */}
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Edit Project Dialog */}
+      <EditProjectDialog
+        open={isEditDialogOpen}
+        project={projectToEdit}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setProjectToEdit(null);
+        }}
+        onSave={handleSaveProject}
+        availableCategories={availableCategories}
+        onOrganizeWithAI={handleOrganizeWithAI}
+      />
     </div>
   );
 }
