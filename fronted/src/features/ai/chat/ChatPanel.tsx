@@ -62,8 +62,8 @@ export function ChatPanel({
   };
 
   return (
-    <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col min-h-0 h-full">
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+    <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col min-h-0 h-full overflow-hidden">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center overflow-hidden">
@@ -80,7 +80,14 @@ export function ChatPanel({
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+      <div 
+        ref={scrollContainerRef} 
+        className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide min-h-0"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
         {messages.map((message, index) => {
           const timestamp = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
 
@@ -188,7 +195,7 @@ export function ChatPanel({
         <div ref={bottomAnchorRef} />
       </div>
 
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
         <div className="flex gap-2">
           <input
             type="file"

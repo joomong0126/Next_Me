@@ -405,7 +405,7 @@ export function AIAssistant({
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex gap-4">
+    <div className="h-[calc(100vh-8rem)] flex gap-4 overflow-hidden">
       {showProjectSidebar && (
         <ProjectSidebar
           projects={projects}

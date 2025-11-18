@@ -41,54 +41,93 @@ export default function IntroPage() {
 
   return (
     <main
-      className="relative w-full min-h-screen overflow-x-hidden overflow-y-auto"
+      className="relative w-full overflow-x-hidden overflow-y-auto"
       style={{
+        position: 'relative',
+        width: '100%',
+        height: '100vh',
         background:
-          'linear-gradient(179deg, rgba(0,0,1,1) 0%, rgba(0,0,1,1) 35%, rgba(13,0,21,1) 50%, rgba(40,24,55,1) 70%, rgba(45,11,80,1) 80%, rgba(86,45,126,1) 93%, rgba(210,164,255,1) 99%)',
-        minHeight: '100vh',
+          'linear-gradient(179deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(1,0,3,1) 62%, rgba(2,0,6,1) 64%, rgba(4,0,10,1) 66%, rgba(6,1,14,1) 68%, rgba(9,2,18,1) 70%, rgba(12,3,22,1) 72%, rgba(16,4,28,1) 74%, rgba(20,6,34,1) 76%, rgba(24,8,40,1) 78%, rgba(28,10,46,1) 80%, rgba(33,12,53,1) 82%, rgba(38,15,60,1) 84%, rgba(44,18,68,1) 86%, rgba(50,22,76,1) 88%, rgba(57,26,85,1) 90%, rgba(65,30,95,1) 92%, rgba(73,35,105,1) 94%, rgba(82,40,116,1) 96%, rgba(92,46,128,1) 98%, rgba(105,55,145,1) 100%)',
+        backgroundAttachment: 'fixed',
       }}
     >
-      {/* 유령 캐릭터 - 텍스트 위쪽 가운데 */}
-      <div className="absolute top-[44%] md:top-[42%] left-1/2 -translate-x-1/2 z-30 flex items-center justify-center">
+      {/* 유령 캐릭터 - 화면 정중앙 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '21%',
+          left: '50%',
+          transform: 'translate(0%, 0%)',
+          zIndex: 30,
+        }}
+        className="flex items-center justify-center"
+      >
         <img
           src="/유령.png"
           alt="Ghost character"
-          className="w-16 h-16 md:w-20 md:h-20 object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] block"
+          className="w-auto h-16 md:h-20 object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.5)] block"
+          style={{ maxWidth: 'none' }}
         />
       </div>
 
-      {/* 텍스트 섹션 - 완전 중앙 */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 px-4 w-full max-w-7xl">
+      {/* 텍스트 섹션 - 중앙보다 아래 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '55%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        }}
+        className="flex flex-col items-center z-10 px-4 w-full max-w-7xl"
+      >
         {/* 메인 헤딩 */}
         <h1 className="mb-8 text-center z-10 text-5xl sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl font-bold text-white leading-tight">
           AI가 당신의 경험 속
           <br />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 drop-shadow-[0_0_12px_rgba(147,51,234,0.8)]">
+          <span
+            className="drop-shadow-[0_0_12px_rgba(147,51,234,0.8)]"
+            style={{
+              background: 'linear-gradient(to right, #8CA7FF, #FFF7CC, #D4A9FF)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
             숨은 역량을 찾아드립니다
           </span>
         </h1>
 
         {/* 서브 헤딩 */}
-        <p className="mb-0 text-center font-bold text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl tracking-[0] leading-relaxed z-10 max-w-6xl">
-          Next me에서 프로젝트와 경험을 업로드하고,
-          <br />
-          AI Nexter와 함께 성장 인사이트를 발견하세요.
+        <p className="mb-0 text-center font-medium text-white/70 text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl tracking-[0] leading-relaxed z-10 max-w-6xl">
+          프로젝트·경험을 업로드하고 AI Nexter와 성장 인사이트를 찾아보세요.
         </p>
 
         {/* 시작하기 버튼 - 서브 헤딩 바로 아래 중앙 */}
         <div className="mt-16 md:mt-24 z-10 relative">
-          {/* 버튼 주변 장식 요소 */}
-          <div className="absolute -inset-4 bg-gradient-to-r from-blue-400/20 via-purple-400/20 to-pink-400/20 rounded-full blur-xl animate-pulse" />
-          <div className="absolute -inset-2 bg-gradient-to-r from-blue-400/10 via-purple-400/10 to-pink-400/10 rounded-full blur-md" />
+          {/* 버튼 주변 글로우 효과 */}
+          <div className="absolute -inset-1 bg-gradient-to-r from-[#8CA7FF] via-[#FFF7CC] to-[#D4A9FF] rounded-full blur-lg opacity-50 animate-pulse" />
           
           <Button
             onClick={handleStart}
-            className="group relative bg-white text-black hover:bg-gray-100 rounded-full px-16 py-8 md:px-20 md:py-9 text-3xl md:text-4xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.5),0_0_60px_rgba(147,51,234,0.3)] transition-all hover:scale-110 hover:shadow-[0_0_40px_rgba(255,255,255,0.7),0_0_80px_rgba(147,51,234,0.5)] flex items-center justify-center gap-3 border-2 border-white/50 min-w-[280px] md:min-w-[320px]"
+            className="group relative rounded-full px-16 py-8 md:px-20 md:py-9 text-3xl md:text-4xl font-bold flex items-center justify-center gap-3 overflow-hidden transition-all hover:scale-105 active:scale-95 intro-start-button"
+            style={{
+              background: 'linear-gradient(135deg, rgba(140, 167, 255, 0.2), rgba(255, 247, 204, 0.2), rgba(212, 169, 255, 0.2))',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '2px solid rgba(255, 255, 255, 0.3)',
+              boxShadow: '0 8px 32px rgba(140, 167, 255, 0.3), 0 0 60px rgba(212, 169, 255, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
+            }}
           >
-            <span className="relative z-10">시작하기</span>
-            <ArrowRight className="w-7 h-7 md:w-8 md:h-8 relative z-10 transition-transform group-hover:translate-x-1" />
-            {/* 버튼 내부 그라데이션 오버레이 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-purple-400/0 to-pink-400/0 hover:from-blue-400/10 hover:via-purple-400/10 hover:to-pink-400/10 rounded-full transition-all" />
+            {/* 그라데이션 오버레이 */}
+            <div 
+              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+              style={{
+                background: 'linear-gradient(135deg, rgba(140, 167, 255, 0.3), rgba(255, 247, 204, 0.3), rgba(212, 169, 255, 0.3))',
+              }}
+            />
+            
+            <span className="relative z-10 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)]">시작하기</span>
+            <ArrowRight className="w-7 h-7 md:w-8 md:h-8 relative z-10 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.3)] transition-transform group-hover:translate-x-2" />
           </Button>
         </div>
       </div>
@@ -98,7 +137,7 @@ export default function IntroPage() {
         <img
           src="/계단유령.png"
           alt="3D structure with ghost"
-          className="w-[250px] md:w-[350px] h-auto object-contain"
+          className="h-auto object-contain opacity-50 intro-stairs-ghost"
         />
       </div>
 

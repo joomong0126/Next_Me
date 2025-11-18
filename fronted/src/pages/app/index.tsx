@@ -178,7 +178,7 @@ export default function AppLayout() {
         onLogout={handleLogout}
       />
 
-      <main className={`${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-72'} mt-16 md:mt-20 p-4 md:p-8`}>
+      <main className={`${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-[360px]'} mt-16 md:mt-20 p-4 md:p-8`}>
         <div className="max-w-[1600px] mx-auto">
           <Outlet context={outletContext} />
         </div>

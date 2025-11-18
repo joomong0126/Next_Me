@@ -45,7 +45,7 @@ export default function Header({ breadcrumb, darkMode, onToggleDarkMode, sidebar
   const [notificationOpen, setNotificationOpen] = useState(false);
 
   return (
-    <header className={`h-16 md:h-20 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 fixed top-0 left-0 ${sidebarCollapsed ? 'md:left-20' : 'md:left-72'} right-0 z-30 shadow-sm`}>
+    <header className={`h-16 md:h-20 bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 fixed top-0 left-0 ${sidebarCollapsed ? 'md:left-20' : 'md:left-[360px]'} right-0 z-30 shadow-sm`}>
       <div className="h-full px-4 md:px-8 flex items-center justify-between gap-2 md:gap-0">
         {/* Mobile Menu & Breadcrumb */}
         <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">

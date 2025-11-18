@@ -257,14 +257,31 @@ html {
   background: rgba(75, 85, 99, 0.5) !important;
 }
 
-/* 스크롤바 숨기기 */
-.scrollbar-hide {
+/* 스크롤바 숨기기 - 전역 스타일보다 우선순위 높게 */
+.scrollbar-hide,
+.scrollbar-hide * {
   scrollbar-width: none !important; /* Firefox */
   -ms-overflow-style: none !important; /* IE and Edge */
 }
 
-.scrollbar-hide::-webkit-scrollbar {
+.scrollbar-hide::-webkit-scrollbar,
+.scrollbar-hide *::-webkit-scrollbar {
   display: none !important; /* Chrome, Safari, Opera */
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-track,
+.scrollbar-hide *::-webkit-scrollbar-track {
+  display: none !important;
+  background: transparent !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-thumb,
+.scrollbar-hide *::-webkit-scrollbar-thumb {
+  display: none !important;
+  background: transparent !important;
 }
 
 /* EditProjectDialog label 스타일 강제 적용 */
@@ -296,4 +313,64 @@ html {
 
 .animate-float {
   animation: float 4s ease-in-out infinite;
+}
+
+/* Intro page start button width */
+.intro-start-button {
+  width: 320px !important;
+}
+
+@media (min-width: 768px) {
+  .intro-start-button {
+    width: 420px !important;
+  }
+}
+
+/* Intro page stairs ghost image size */
+.intro-stairs-ghost {
+  width: 150px !important;
+}
+
+@media (min-width: 768px) {
+  .intro-stairs-ghost {
+    width: 600px !important;
+  }
+}
+
+/* Sidebar width and positioning overrides */
+/* Apply custom width - slightly smaller than w-96 */
+/* Use higher specificity to override global.css */
+div.fixed.left-0[class*="w-[360px]"] {
+  width: 360px !important; /* 360px - slightly smaller than 384px */
+}
+
+div.fixed.left-0.w-20 {
+  width: 5rem !important; /* 80px */
+}
+
+@media (min-width: 768px) {
+  /* Header positioning */
+  header[class*="md:left-[360px]"] {
+    left: 360px !important; /* 360px */
+  }
+  
+  header[class*="md:left-20"] {
+    left: 5rem !important; /* 80px */
+  }
+  
+  /* Main content positioning */
+  main[class*="md:ml-[360px]"] {
+    margin-left: 360px !important; /* 360px */
+  }
+  
+  main[class*="md:ml-20"] {
+    margin-left: 5rem !important; /* 80px */
+  }
+}
+
+/* Sidebar background color override - darker black */
+/* Target sidebar specifically by checking for w-[360px] or w-20 class */
+div[class*="w-[360px]"][class*="h-screen"][class*="fixed"],
+div[class*="w-20"][class*="h-screen"][class*="fixed"] {
+  background: linear-gradient(to bottom, #050505, #0a0a0a, #050505) !important;
 }

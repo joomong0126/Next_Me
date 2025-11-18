@@ -15,10 +15,10 @@ interface SidebarProps {
 }
 
 const menuItems: Array<{ id: AppPage; label: string; icon: typeof FolderKanban; isComingSoon?: boolean }> = [
-  { id: 'assistant', label: 'AI Assistant', icon: Bot },
+  { id: 'assistant', label: '프로젝트 인사이트', icon: Bot },
   { id: 'career-generator', label: 'AI 커리어 생성기', icon: Wand2 },
-  { id: 'projects', label: 'Projects', icon: FolderKanban },
-  { id: 'skills', label: 'Skills & Insights', icon: Brain, isComingSoon: true },
+  { id: 'projects', label: '프로젝트 보관함', icon: FolderKanban },
+  { id: 'skills', label: 'Skills', icon: Brain, isComingSoon: true },
   { id: 'goals', label: 'Goals', icon: Target, isComingSoon: true },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -31,6 +31,16 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
     if (onClose) onClose();
   };
 
+  const handleToggleCollapse = () => {
+    try {
+      if (onToggleCollapse) {
+        onToggleCollapse();
+      }
+    } catch (error) {
+      console.error('Error toggling sidebar:', error);
+    }
+  };
+
   return (
     <>
       {/* Overlay for mobile */}
@@ -41,7 +51,7 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
         />
       )}
       
-      <div className={`${collapsed ? 'w-20' : 'w-72'} h-screen bg-gradient-to-b from-[#0F172A] via-[#1E293B] to-[#0F172A] border-r border-[#334155] flex flex-col fixed left-0 top-0 shadow-2xl z-50 transition-all duration-300 ${
+      <div className={`${collapsed ? 'w-20' : 'w-[360px]'} h-screen bg-gradient-to-b from-[#050505] via-[#0a0a0a] to-[#050505] border-r border-[#1a1a1a] flex flex-col fixed left-0 top-0 shadow-2xl z-50 transition-all duration-300 ${
         isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
       }`}>
         {/* Close button for mobile */}
@@ -56,7 +66,19 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
 
         {/* Logo & Collapse - Enhanced */}
         <div className={`p-8 pb-6 ${collapsed ? 'px-4' : ''}`}>
-          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-4'} group cursor-pointer`}>
+          <div 
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-4'} group cursor-pointer`}
+            onClick={handleToggleCollapse}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleToggleCollapse();
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+          >
             <div className={`${collapsed ? 'w-12 h-12' : 'w-14 h-14'} bg-white/10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-300 group-hover:scale-105 group-hover:bg-white/15 overflow-hidden`}>
               <img src="/유령.png" alt="Next ME" className={`${collapsed ? 'w-8 h-8' : 'w-10 h-10'} object-cover`} />
             </div>
@@ -75,7 +97,7 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={onToggleCollapse}
+                onClick={handleToggleCollapse}
                 className="text-white hover:bg-white/10 rounded-lg"
                 title={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
               >
@@ -86,7 +108,7 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
         </div>
 
       {/* Divider */}
-      <div className={`${collapsed ? 'mx-3' : 'mx-6'} h-px bg-gradient-to-r from-transparent via-[#334155] to-transparent mb-2`}></div>
+      <div className={`${collapsed ? 'mx-3' : 'mx-6'} h-px bg-gradient-to-r from-transparent via-[#1a1a1a] to-transparent mb-2`}></div>
 
       {/* Menu Items - Enhanced */}
       <nav className={`flex-1 ${collapsed ? 'px-2' : 'px-4'} py-2 overflow-y-auto`}>
@@ -141,7 +163,7 @@ export default function Sidebar({ currentPage, onNavigate, isOpen = false, onClo
 
 
       {/* Profile - Enhanced */}
-      <div className={`${collapsed ? 'p-2' : 'p-4'} border-t border-[#334155]`}>
+      <div className={`${collapsed ? 'p-2' : 'p-4'} border-t border-[#1a1a1a]`}>
         <div
           className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'} p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer transition-all duration-200 group`}
           onClick={() => handleNavigate('settings')}

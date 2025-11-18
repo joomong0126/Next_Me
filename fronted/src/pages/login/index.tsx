@@ -171,11 +171,20 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-lg rounded-xl border-gray-200">
+      <Card className="w-full max-w-md shadow-lg rounded-3xl border-gray-200">
         <CardHeader className="space-y-2 text-center pt-8 pb-6">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-gray-900 rounded-xl flex items-center justify-center">
-              <span className="text-white text-2xl">ME</span>
+            <div
+              className="w-12 h-12 rounded-full flex items-center justify-center"
+              style={{
+                background: 'linear-gradient(to right, #000000, #9333EA)',
+              }}
+            >
+              <img
+                src="/유령.png"
+                alt="ME"
+                className="w-8 h-8 object-contain"
+              />
             </div>
           </div>
           <CardTitle className="text-gray-900">Next ME에 오신 걸 환영합니다</CardTitle>
@@ -193,7 +202,7 @@ export default function LoginPage() {
                 placeholder="name@example.com"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                className="rounded-lg"
+                className="rounded-xl"
                 required
                 autoComplete="email"
               />
@@ -215,7 +224,7 @@ export default function LoginPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="rounded-lg"
+                className="rounded-xl"
                 required
                 autoComplete="current-password"
               />
@@ -224,7 +233,10 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={isLoading}
-              className="w-full rounded-lg bg-gray-900 hover:bg-gray-800 text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full rounded-xl text-white disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                background: 'linear-gradient(to right, #000000, #9333EA)',
+              }}
             >
               {isLoading ? '로그인 중...' : '로그인'}
             </Button>
@@ -243,7 +255,7 @@ export default function LoginPage() {
             type="button"
             variant="outline"
             disabled={isLoading}
-            className="w-full rounded-lg border-gray-300 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full rounded-xl border-gray-300 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={handleGoogleLogin}
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">

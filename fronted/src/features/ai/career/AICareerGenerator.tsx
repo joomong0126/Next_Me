@@ -7,7 +7,6 @@ import { useAIFeature } from '@/features/ai/generation/hooks/useAIFeature';
 import { ProjectSelectDialog } from '@/features/ai/assistant/components/ProjectSelectDialog';
 import { CareerFeatureCards } from './components/CareerFeatureCards';
 import { useCareerChat } from './hooks/useCareerChat';
-import { Sparkles } from 'lucide-react';
 
 const DEFAULT_WELCOME_MESSAGE =
   'AI 커리어 제너레이터입니다. 프로젝트를 분석하고 원하는 결과물을 만들어보세요.';
@@ -120,8 +119,16 @@ export function AICareerGenerator({
         {/* Welcome Section - shown when no messages or only welcome message */}
         {messages.length <= 1 && (
           <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col items-center justify-center p-8">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 flex items-center justify-center mb-6">
-              <Sparkles className="w-12 h-12 text-purple-600 dark:text-purple-400" />
+            <div className="w-24 h-24 rounded-full bg-black dark:bg-black flex items-center justify-center mb-6 overflow-hidden p-3">
+              <img 
+                src="/유령.png" 
+                alt="Ghost" 
+                className="w-full h-full object-contain" 
+                style={{ 
+                  filter: 'brightness(0) invert(1)',
+                  WebkitFilter: 'brightness(0) invert(1)'
+                }}
+              />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
               AI 커리어 생성을 시작해보세요
